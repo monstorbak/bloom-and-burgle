@@ -96,8 +96,11 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Sell pad: when player touches their sell pad, convert inventory → cash
-for _, sellPad in CollectionService:GetTagged("SellPad") do
+-- Sell pad: when player touches their sell pad, convert inventory → cash.
+-- Use GetInstanceAddedSignal so we wire up sell pads as PlotManager spawns them
+-- (the for-loop-at-startup approach was a footgun: at server boot, 0 plots exist).
+local function wireSellPad(sellPad: Instance)
+	if not sellPad:IsA("BasePart") then return end
 	sellPad.Touched:Connect(function(hit)
 		local character = hit:FindFirstAncestorOfClass("Model")
 		if not character then return end
@@ -129,6 +132,13 @@ for _, sellPad in CollectionService:GetTagged("SellPad") do
 		SellPlantsRE:FireClient(player, total)
 	end)
 end
+
+-- Wire any sell pads that already exist (defensive, normally none at startup)
+for _, sellPad in CollectionService:GetTagged("SellPad") do
+	wireSellPad(sellPad)
+end
+-- And every future sell pad as PlotManager tags them
+CollectionService:GetInstanceAddedSignal("SellPad"):Connect(wireSellPad)
 
 -- Listen for client plant requests (clicked a planter in-world)
 PlantSeedRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
