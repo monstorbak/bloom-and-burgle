@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Roblox build outputs
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+build/
+dist/
+
+# Rokit
+!rokit.toml
+
+# Wally
+Packages/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Secrets
+.env
+secrets.json
+api-keys.json
+
+# Mantle state
+.mantle-state.yml
+
+# Logs
+*.log
+
+# Local debug
+debug/
