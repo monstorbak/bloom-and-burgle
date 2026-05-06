@@ -7,7 +7,8 @@ local Workspace = game:GetService("Workspace")
 
 local NUM_PLOT_SLOTS = 16                    -- max concurrent player plots
 local PLOT_SPACING = 80                      -- studs between plot centers
-local PLOT_RING_RADIUS = 220                 -- distance from town square
+local PLOT_RING_RADIUS = 220                 -- distance from town square (where plots get built)
+local CLAIM_PAD_RING_RADIUS = 35             -- distance from spawn where claim PADS sit (close so mobile players can find them)
 local CLAIM_PAD_COLOR = Color3.fromRGB(180, 100, 255)  -- purple-pink claim pad
 local PLOT_BASE_COLOR = Color3.fromRGB(50, 30, 60)
 local SELL_PAD_COLOR = Color3.fromRGB(60, 230, 120)
@@ -23,6 +24,12 @@ end
 local function slotPosition(i: number): Vector3
 	local theta = (i - 1) * (2 * math.pi / NUM_PLOT_SLOTS)
 	return Vector3.new(math.cos(theta) * PLOT_RING_RADIUS, 0, math.sin(theta) * PLOT_RING_RADIUS)
+end
+
+-- Compute world position of a claim pad (much closer to spawn so players can find it)
+local function claimPadPosition(i: number): Vector3
+	local theta = (i - 1) * (2 * math.pi / NUM_PLOT_SLOTS)
+	return Vector3.new(math.cos(theta) * CLAIM_PAD_RING_RADIUS, 0, math.sin(theta) * CLAIM_PAD_RING_RADIUS)
 end
 
 -- Build a procedural starter plot at `origin` for `player`.
@@ -122,15 +129,18 @@ end
 
 -- Spawn a claim pad at slot `i`. Touching it claims the slot for the player.
 local function makeClaimPad(i: number): Part
-	local pos = slotPosition(i)
+	local pos = claimPadPosition(i)
 	local pad = Instance.new("Part")
 	pad.Name = ("ClaimPad_%d"):format(i)
-	pad.Size = Vector3.new(10, 1, 10)
-	pad.Position = pos + Vector3.new(0, 1, 0)
+	-- Tall, fat, impossible-to-miss pad. Mobile-friendly: walking near it triggers .Touched easily.
+	pad.Size = Vector3.new(12, 4, 12)
+	pad.Position = pos + Vector3.new(0, 2, 0)
 	pad.Anchored = true
+	pad.CanCollide = false  -- Walk-through so mobile thumbstick doesn't bump into it
 	pad.Material = Enum.Material.Neon
 	pad.Color = CLAIM_PAD_COLOR
 	pad.TopSurface = Enum.SurfaceType.Smooth
+	pad.Transparency = 0.2
 	pad.Parent = Workspace
 	pad:AddTag("ClaimPad")
 	pad:SetAttribute("SlotIndex", i)
@@ -197,6 +207,20 @@ for i = 1, NUM_PLOT_SLOTS do
 		end
 	end)
 end
+
+-- ReturnToPlot RemoteEvent: client-requested teleport back to player's plot.
+-- Used by the 🏠 RETURN TO PLOT button after death/respawn.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local returnRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ReturnToPlot") :: RemoteEvent
+returnRE.OnServerEvent:Connect(function(player)
+	local i = player:GetAttribute("PlotSlotIndex")
+	if not i then return end
+	local character = player.Character
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return end
+	hrp.CFrame = CFrame.new(slotPosition(i) + Vector3.new(0, 5, 0))
+end)
 
 -- Free a slot when player leaves so the next joiner can claim
 Players.PlayerRemoving:Connect(function(player)

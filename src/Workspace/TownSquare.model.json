@@ -27,23 +27,23 @@
       }
     },
     {
-      "name": "Welcome",
+      "name": "WelcomeArch",
       "className": "Part",
       "properties": {
-        "Size": [40, 0.5, 8],
-        "Position": [0, 12, 0],
+        "Size": [30, 0.5, 6],
+        "Position": [0, 22, 0],
         "Anchored": true,
         "CanCollide": false,
         "Material": "Neon",
         "Color": [1.0, 0.8, 0.4],
-        "Transparency": 0.05
+        "Transparency": 0.1
       },
       "children": [
         {
           "name": "Sign",
           "className": "BillboardGui",
           "properties": {
-            "Size": { "UDim2": [[0, 600], [0, 120]] },
+            "Size": { "UDim2": [[0, 480], [0, 90]] },
             "AlwaysOnTop": true
           },
           "children": [
@@ -53,7 +53,7 @@
               "properties": {
                 "Size": { "UDim2": [[1, 0], [1, 0]] },
                 "BackgroundTransparency": 1,
-                "Text": "✨ BLOOM & BURGLE ✨",
+                "Text": "🌸 Bloom & Burgle 💰",
                 "TextColor3": [1, 1, 1],
                 "TextStrokeTransparency": 0,
                 "TextScaled": true,
@@ -68,8 +68,8 @@
       "name": "SpawnLocation",
       "className": "SpawnLocation",
       "properties": {
-        "Size": [8, 1, 8],
-        "Position": [0, 2, 20],
+        "Size": [10, 1, 10],
+        "Position": [0, 2, 12],
         "Anchored": true,
         "Material": "Neon",
         "Color": [0.6, 0.9, 1.0],

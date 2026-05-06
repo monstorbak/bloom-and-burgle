@@ -1,0 +1,228 @@
+--!strict
+-- CashHUD: top-of-screen cash counter, harvest counter, objective banner,
+-- + bottom-row action buttons (return to plot, shop).
+-- Mobile-first: large fonts, scaled to viewport, AnchorPoint-friendly.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local CollectionService = game:GetService("CollectionService")
+
+local returnRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ReturnToPlot") :: RemoteEvent
+local OpenShopRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("OpenShop") :: RemoteEvent
+local SellPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellPlants") :: RemoteEvent
+
+local player = Players.LocalPlayer
+local pg = player:WaitForChild("PlayerGui")
+
+local function fmt(n: number): string
+	n = math.floor(n)
+	if n < 1000 then return tostring(n) end
+	if n < 1_000_000 then
+		local s = string.format("%.1fK", n / 1000)
+		return s:gsub("%.0K", "K")
+	end
+	if n < 1_000_000_000 then
+		return string.format("%.2fM", n / 1_000_000)
+	end
+	return string.format("%.2fB", n / 1_000_000_000)
+end
+
+local screen = Instance.new("ScreenGui")
+screen.Name = "CashHUD"
+screen.ResetOnSpawn = false
+screen.IgnoreGuiInset = true
+screen.DisplayOrder = 10
+screen.Parent = pg
+
+-- ── Top-right cash chip ──────────────────────────────────────────────
+local cashFrame = Instance.new("Frame")
+cashFrame.Size = UDim2.new(0, 240, 0, 70)
+cashFrame.AnchorPoint = Vector2.new(1, 0)
+cashFrame.Position = UDim2.new(1, -16, 0, 16)
+cashFrame.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
+cashFrame.BackgroundTransparency = 0.1
+cashFrame.BorderSizePixel = 0
+cashFrame.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = cashFrame
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 200, 80); s.Thickness = 3; s.Parent = cashFrame
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(180, 56); sz.MaxSize = Vector2.new(360, 90); sz.Parent = cashFrame
+end
+
+local cashLabel = Instance.new("TextLabel")
+cashLabel.Size = UDim2.new(1, -16, 1, -10)
+cashLabel.Position = UDim2.fromOffset(8, 5)
+cashLabel.BackgroundTransparency = 1
+cashLabel.Text = "💰 $0"
+cashLabel.TextColor3 = Color3.fromRGB(255, 230, 130)
+cashLabel.TextStrokeTransparency = 0.3
+cashLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+cashLabel.Font = Enum.Font.FredokaOne
+cashLabel.TextScaled = true
+cashLabel.Parent = cashFrame
+
+-- ── Top-center objective banner ──────────────────────────────────────
+local hintFrame = Instance.new("Frame")
+hintFrame.Size = UDim2.new(0.55, 0, 0, 60)
+hintFrame.AnchorPoint = Vector2.new(0.5, 0)
+hintFrame.Position = UDim2.new(0.5, 0, 0, 16)
+hintFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 45)
+hintFrame.BackgroundTransparency = 0.1
+hintFrame.BorderSizePixel = 0
+hintFrame.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = hintFrame
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(120, 255, 140); s.Thickness = 2; s.Parent = hintFrame
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(280, 50); sz.MaxSize = Vector2.new(620, 70); sz.Parent = hintFrame
+end
+
+local hintLabel = Instance.new("TextLabel")
+hintLabel.Size = UDim2.new(1, -20, 1, 0)
+hintLabel.Position = UDim2.fromOffset(10, 0)
+hintLabel.BackgroundTransparency = 1
+hintLabel.Text = "🌸 Walk into a glowing PINK pad to claim your plot"
+hintLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+hintLabel.TextStrokeTransparency = 0.5
+hintLabel.Font = Enum.Font.GothamBold
+hintLabel.TextScaled = true
+hintLabel.TextWrapped = true
+hintLabel.Parent = hintFrame
+
+-- ── Bottom-left return-to-plot button ────────────────────────────────
+local returnBtn = Instance.new("TextButton")
+returnBtn.Name = "ReturnToPlotBtn"
+returnBtn.Size = UDim2.new(0, 200, 0, 70)
+returnBtn.AnchorPoint = Vector2.new(0, 1)
+returnBtn.Position = UDim2.new(0, 16, 1, -16)
+returnBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
+returnBtn.TextColor3 = Color3.fromRGB(40, 25, 60)
+returnBtn.Text = "🏠 PLOT"
+returnBtn.Font = Enum.Font.FredokaOne
+returnBtn.TextScaled = true
+returnBtn.BorderSizePixel = 0
+returnBtn.AutoButtonColor = true
+returnBtn.Visible = false
+returnBtn.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = returnBtn
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(40, 25, 60); s.Thickness = 3; s.Parent = returnBtn
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(140, 60); sz.MaxSize = Vector2.new(260, 90); sz.Parent = returnBtn
+end
+returnBtn.Activated:Connect(function() returnRE:FireServer() end)
+
+-- ── Bottom-right shop button ─────────────────────────────────────────
+local shopBtn = Instance.new("TextButton")
+shopBtn.Name = "ShopBtn"
+shopBtn.Size = UDim2.new(0, 200, 0, 70)
+shopBtn.AnchorPoint = Vector2.new(1, 1)
+shopBtn.Position = UDim2.new(1, -16, 1, -16)
+shopBtn.BackgroundColor3 = Color3.fromRGB(120, 220, 100)
+shopBtn.TextColor3 = Color3.fromRGB(20, 50, 30)
+shopBtn.Text = "🛒 SHOP"
+shopBtn.Font = Enum.Font.FredokaOne
+shopBtn.TextScaled = true
+shopBtn.BorderSizePixel = 0
+shopBtn.AutoButtonColor = true
+shopBtn.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = shopBtn
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(40, 80, 40); s.Thickness = 3; s.Parent = shopBtn
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(140, 60); sz.MaxSize = Vector2.new(260, 90); sz.Parent = shopBtn
+end
+shopBtn.Activated:Connect(function() OpenShopRE:FireServer() end)
+
+-- ── Wire to leaderstats Cash ──────────────────────────────────────────
+task.spawn(function()
+	local ls = player:WaitForChild("leaderstats", 30)
+	if not ls then return end
+	local cash = ls:WaitForChild("Cash", 10) :: IntValue?
+	if not cash then return end
+	local function update()
+		cashLabel.Text = "💰 $" .. fmt(cash.Value)
+	end
+	update()
+	cash:GetPropertyChangedSignal("Value"):Connect(update)
+end)
+
+-- ── Update objective hint based on player state ───────────────────────
+task.spawn(function()
+	while true do
+		local claimed = player:GetAttribute("PlotClaimed")
+		local harvested = player:GetAttribute("PlantsHarvested") or 0
+		-- Count current ripe + growing plants on player's plot
+		local growing, ripe = 0, 0
+		for _, planter in CollectionService:GetTagged("Planter") do
+			if planter:GetAttribute("OwnerUserId") == player.UserId
+				and not planter:GetAttribute("IsEmpty") then
+				growing += 1
+				local at = planter:GetAttribute("PlantedAt") or 0
+				local g = planter:GetAttribute("GrowSeconds") or 60
+				if os.time() - at >= g then ripe += 1 end
+			end
+		end
+
+		if not claimed then
+			hintLabel.Text = "🌸 Walk into a glowing PINK pad to claim your plot"
+		elseif growing == 0 then
+			hintLabel.Text = "🛒 Buy seeds at the SHOP, then press E on a planter to plant"
+		elseif ripe > 0 then
+			hintLabel.Text = string.format("💰 %d ripe — walk on the GREEN sell pad to cash in!", ripe)
+		else
+			hintLabel.Text = string.format("🌱 %d growing… come back soon", growing)
+		end
+		task.wait(1.5)
+	end
+end)
+
+-- ── Show/hide bottom buttons based on plot status ─────────────────────
+task.spawn(function()
+	while true do
+		returnBtn.Visible = player:GetAttribute("PlotClaimed") == true
+		task.wait(0.5)
+	end
+end)
+
+-- ── Hide leftover claim pads after we've claimed ──────────────────────
+task.spawn(function()
+	while not player:GetAttribute("PlotClaimed") do
+		task.wait(0.5)
+		if not player.Parent then return end
+	end
+	local function hide(pad: Instance)
+		if pad:IsA("BasePart") then
+			pad.LocalTransparencyModifier = 1
+			for _, child in pad:GetDescendants() do
+				if child:IsA("BillboardGui") then child.Enabled = false end
+			end
+		end
+	end
+	for _, pad in CollectionService:GetTagged("ClaimPad") do hide(pad) end
+	CollectionService:GetInstanceAddedSignal("ClaimPad"):Connect(hide)
+end)
+
+-- ── Sell toast ────────────────────────────────────────────────────────
+SellPlantsRE.OnClientEvent:Connect(function(amount)
+	local toast = Instance.new("ScreenGui")
+	toast.ResetOnSpawn = false
+	toast.IgnoreGuiInset = true
+	toast.Parent = pg
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0.5, 0, 0, 90)
+	lbl.AnchorPoint = Vector2.new(0.5, 0.5)
+	lbl.Position = UDim2.fromScale(0.5, 0.5)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = string.format("💰 +$%s", fmt(amount))
+	lbl.TextColor3 = Color3.fromRGB(120, 255, 140)
+	lbl.TextStrokeTransparency = 0
+	lbl.Font = Enum.Font.FredokaOne
+	lbl.TextScaled = true
+	lbl.Parent = toast
+	local sz = Instance.new("UISizeConstraint"); sz.MaxSize = Vector2.new(700, 140); sz.Parent = lbl
+	TweenService:Create(lbl, TweenInfo.new(2.0, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+		Position = UDim2.fromScale(0.5, 0.25),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	}):Play()
+	task.delay(2.2, function() if toast and toast.Parent then toast:Destroy() end end)
+end)
