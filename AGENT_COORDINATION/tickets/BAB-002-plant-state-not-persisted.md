@@ -1,7 +1,7 @@
 # BAB-002: Plant grow state lost on server restart (no DataStore persistence)
 
 **Owner:** G-Tard Lin
-**State:** inbox
+**State:** in-progress
 **Priority:** P0
 **Files touched:** `src/ServerScriptService/DataStore.luau`, `src/ServerScriptService/PlantHandler.server.luau`, `src/ServerScriptService/LeaderstatsScript.server.luau`
 
@@ -43,3 +43,4 @@ Net effect: a player plants Mythic Sunbloom, server cycles, plant is gone. **Thi
 ## Log
 
 - 2026-05-06 — G-Tard filed during initial triage
+- 2026-05-06 — Lin claimed. Plan: extend `DataStore` with `plot.planters` + `plot.stash`, add inventory getters/setters in `PlantHandler`, replay-on-join, 24h offline catchup cap. Also patching `PlotManager` to rebuild plot on rejoin (latent bug — `plotClaimed=true` saved but plot never reconstructed).

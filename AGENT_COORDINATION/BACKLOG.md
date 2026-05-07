@@ -4,12 +4,12 @@
 
 ## P0 — money on the floor, fix now
 
-| Ticket | Title | Owner |
-|---|---|---|
-| [BAB-001](tickets/BAB-001-sellpad-empty-loop.md) | SellPad payout never fires | G-Tard Lin |
-| [BAB-002](tickets/BAB-002-plant-state-not-persisted.md) | Plant grow state lost on server restart | G-Tard Lin |
-| [BAB-003](tickets/BAB-003-stash-vs-cash-decoupled.md) | Harvested plants don't go in stash | G-Tard Lin |
-| [BAB-007](tickets/BAB-007-gamepass-and-devproduct-ids.md) | Gamepass + Dev product IDs are zero | G-Tard (Mac) |
+| Ticket | Title | Owner | State |
+|---|---|---|---|
+| [BAB-001](tickets/BAB-001-sellpad-empty-loop.md) | SellPad payout never fires | G-Tard (Mac) | ✅ done (b53055a) |
+| [BAB-002](tickets/BAB-002-plant-state-not-persisted.md) | Plant grow state lost on server restart | G-Tard Lin | 🔨 in-progress |
+| [BAB-003](tickets/BAB-003-stash-vs-cash-decoupled.md) | Harvested plants don't go in stash | G-Tard Lin | inbox |
+| [BAB-007](tickets/BAB-007-gamepass-and-devproduct-ids.md) | Gamepass + Dev product IDs are zero | G-Tard (Mac) | inbox |
 
 ## P1 — retention + virality
 
