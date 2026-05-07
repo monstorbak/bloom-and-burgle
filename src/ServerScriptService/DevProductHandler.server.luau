@@ -10,14 +10,13 @@ local Workspace = game:GetService("Workspace")
 
 local receiptStore = DataStoreService:GetDataStore("BloomAndBurgle_Receipts_v1")
 
--- BAB-007: Dev product IDs (replace with real IDs from Roblox Creator Dashboard once created).
--- Placeholder values shown; when you create them, update these and commit.
+-- BAB-007: Dev product IDs from Roblox Creator Dashboard (live as of 2026-05-07).
 local DEFAULT_PRODUCT_IDS = {
-	GROWTH_ACCELERATOR_INSTANT = 0,    -- instant-finish all plants (99R)
-	PREMIUM_SEED_BUNDLE = 0,           -- 5 rare seeds  (199R)
-	JAIL_ESCAPE_TOKEN = 0,             -- escape steal jail (49R)
-	LUCK_BOOST_8X = 0,                 -- 8x mutations 30min (99R)
-	EXTRA_PLOT_SLOT = 0,               -- +1 plot slot (299R)
+	GROWTH_ACCELERATOR_INSTANT = 3588015340,    -- instant-finish all plants (99R)
+	PREMIUM_SEED_BUNDLE = 3588015485,           -- 5 rare seeds  (199R)
+	JAIL_ESCAPE_TOKEN = 3588015580,             -- escape steal jail (49R)
+	LUCK_BOOST_8X = 3588015709,                 -- 8x mutations 30min (99R)
+	EXTRA_PLOT_SLOT = 3588015815,               -- +1 plot slot (299R)
 }
 
 local function productId(key: string): number

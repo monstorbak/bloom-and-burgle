@@ -10,15 +10,14 @@ local Workspace = game:GetService("Workspace")
 
 -- Default pass IDs (replace with real ones from the Roblox dashboard).
 -- Set Workspace:SetAttribute("BB_GAMEPASS_<KEY>", id) at runtime to override.
--- BAB-007: Gamepass IDs (replace with real IDs from Roblox Creator Dashboard once created).
--- Placeholder values shown; when you create them, update these and commit.
+-- BAB-007: Gamepass IDs from Roblox Creator Dashboard (live as of 2026-05-07).
 local DEFAULT_PASS_IDS = {
-	["2X_CASH"] = 0,         -- 2x money forever (199R)
-	["4X_CASH"] = 0,         -- 4x money forever (499R)
-	["AUTO_HARVEST"] = 0,    -- auto-harvest every 8 hours (349R)
-	["ANTI_THEFT"] = 0,      -- shield blocks steals (299R)
-	["VIP_PLOT"] = 0,        -- larger plot + 2x growth (399R)
-	["MYTHIC_HUNTER"] = 0,   -- 4x mutation chance (799R)
+	["2X_CASH"] = 1825685723,         -- 2x money forever (199R)
+	["4X_CASH"] = 1828272546,         -- 4x money forever (499R)
+	["AUTO_HARVEST"] = 1826815749,    -- auto-harvest every 8 hours (349R)
+	["ANTI_THEFT"] = 1825685871,      -- shield blocks steals (299R)
+	["VIP_PLOT"] = 1824169699,        -- larger plot + 2x growth (399R)
+	["MYTHIC_HUNTER"] = 1825847920,   -- 4x mutation chance (799R)
 }
 
 local function passId(key: string): number
