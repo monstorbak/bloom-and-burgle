@@ -89,10 +89,14 @@ Players.PlayerAdded:Connect(function(player)
 	-- BAB-002 load order: rebuild plot → replay plants. Both APIs are exposed
 	-- via _G by their respective server scripts; wait briefly for them in case
 	-- of script load ordering on first server boot.
-	if data.plotClaimed and data.plotSlotIndex then
+	-- BAB-002.1: If plotClaimed=true but plotSlotIndex is nil (legacy save from
+	-- before plotSlotIndex was tracked), still rebuild — PlotManager will pick
+	-- the first available slot.
+	if data.plotClaimed then
 		local plotManager = waitForGlobal("PlotManager", 5)
 		if plotManager and plotManager.rebuildFromSave then
-			local ok, err = pcall(plotManager.rebuildFromSave, player, data.plotSlotIndex)
+			local slotToTry = data.plotSlotIndex or -1  -- -1 signals "any"
+			local ok, err = pcall(plotManager.rebuildFromSave, player, slotToTry)
 			if not ok then
 				warn(("[Leaderstats] PlotManager.rebuildFromSave failed for %s: %s"):format(player.Name, tostring(err)))
 			end

@@ -219,11 +219,12 @@ local API = {}
 -- treat the player as un-claimed and let them touch a fresh ClaimPad).
 function API.rebuildFromSave(player: Player, savedSlot: number): Model?
 	if typeof(savedSlot) ~= "number" then return nil end
-	local s = slots[savedSlot]
-	if not s then return nil end
-	if s.player and s.player ~= player then
-		-- Slot taken by someone else this server — fall back: assign first
-		-- empty slot so the player still gets a plot.
+	-- BAB-002.1: savedSlot of -1 means "legacy player, plotClaimed=true but no
+	-- saved index" — fall through to the find-empty-slot fallback below.
+	local s = if savedSlot >= 1 and savedSlot <= NUM_PLOT_SLOTS then slots[savedSlot] else nil
+	if not s or (s.player and s.player ~= player) then
+		-- Slot invalid OR taken by someone else this server — fall back: assign
+		-- first empty slot so the player still gets a plot.
 		local fallback: number? = nil
 		for i = 1, NUM_PLOT_SLOTS do
 			if not slots[i].player then fallback = i; break end
