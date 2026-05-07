@@ -1,147 +1,137 @@
 # BAB-011 Playtest Guide
 
-**Commit:** 1b664a5  
-**What changed:** Plants are no longer yellow rectangles. SellPad is now a proper kiosk. Planters have visual borders.
+**Current commit:** 6ca873c  
+**Last updated:** 2026-05-07 14:45 EDT
 
 ---
 
-## 🎬 How to Test
+## What Changed (6ca873c vs Earlier)
 
-### 1. Open the game in Studio
-```
-cd ~/Dev/bloom-and-burgle
-bash scripts/sync-from-studio.sh           # (if you changed anything)
-bash scripts/build.sh                       # rebuild rbxlx
-# Open BloomAndBurgle.rbxlx in Roblox Studio
-```
+**The Problem:** Plants grew for ~60 seconds, then **vanished silently**. Players had no idea what happened — looked like a bug.
 
-### 2. Enter Play mode (Studio → Play)
+**The Fix:** Plants now **STAY VISIBLE and RIPE**, waiting for you to walk over them to harvest.
 
-### 3. Look at each of these things:
+---
 
-#### A. Walk to the planting area
-You should see:
-- **9 planting slots** in a 3x3 grid
-- Each slot has a **soft green border frame** underneath (like a halo)
-- Borders are **glowing** (neon material) so they're obvious
+## 🎬 Full Cycle to Test
 
-#### B. Click "SHOP" button
-Buy a seed (try "Sunbloom" at 25 cash).
+### 1. Start Play in Studio
 
-#### C. Go back to a planter with the green border
-- Press **E** on the planter (or you'll see a prompt if we added one)
-- A **plant should sprout** — NOT a yellow box, but:
-  - A **stem** (greenish)
-  - **Two leaves** halfway up (angled outward)
-  - A **bud** forming at the top
-- The green **border should disappear** (no longer empty)
+You have:
+- 💰 **$10,000 cash** (dev mode auto-gives)
+- 🌱 **5 Sunbloom + 5 Lavender Glow seeds** (dev mode auto-gives)
+- ⚠️ **Red "DEV MODE" badge** top-left (so you remember this is test mode)
 
-#### D. Watch the plant grow
-As the plant grows (takes ~60 sec for Sunbloom):
+### 2. Walk to a planter
+You'll see a **3x3 grid of brown planters** with **green glowing borders** underneath (empty slots).
+
+### 3. Press E on a planter
+- A **seed picker dialog** should pop up
+- Pick a seed (Sunbloom is fast, ~60 sec grow time)
+- **Seedling sprouts** — a small stem + leaves appear
+
+### 4. Watch it grow (~60 seconds)
 - Stem gets taller
-- Leaves become more visible/opaque
-- Bud swells and changes color
-- Bloom appears at the top (neon, same color as species)
+- Leaves become visible
+- Flower bud forms at top
+- **When complete:** Flower **glows neon**, planter's green border disappears
 
-#### E. When ripe (100% grown)
-- Bloom should **glow brighter** (neon light effect)
-- Should show a **✨ emoji** floating above it
-- Plant might **pulse/animate** slightly
+### 5. Walk over the RIPE plant (key change!)
+- Just **walk on top of the planter** — don't click anything
+- Plant instantly **disappears**
+- A **floating popup** appears: `+1 🌻 Sunbloom` (or `+1 ✨ MUTATION_NAME` if mutation)
+- Popup **floats up & fades out**
 
-#### F. Walk to the SELL area
-You should see:
-- **A proper kiosk** with:
-  - Green glowing platform base
-  - Silver post in the center  
-  - Green neon sign with "SELL" text
-  - Glowing ring around the base
-  - **"Walk here to sell"** prompt above the sign
+### 6. Walk to the SELL PAD (green glowing kiosk on the left)
+- It has a **post, platform, neon sign**
+- Stand on it
+- You see: **"Walk here to sell"** prompt
+- **Crops harvest automatically** (invisible stash converted to coins)
+- **Cash increases** on HUD
 
-#### G. Stand on the sell pad
-- Your crops should be **harvested automatically**
-- You should see **cash increase**
-- The ripe bloom should disappear
+### 7. Repeat: Buy more seeds → Plant → Grow → Harvest via walk-over → Sell
 
 ---
 
-## 🚩 What I'm looking for
+## ✅ What to Watch For (Good Signs)
 
-### ✅ Good signs:
-- [ ] Plants look like actual plants (stem, leaves, flower)
-- [ ] Plants grow smoothly over time (3-stage visual progression)
-- [ ] Ripe plants glow and show emoji
-- [ ] Planter borders are visible and disappear when planted
-- [ ] Sell kiosk looks clean (no floating glitchy text)
-- [ ] Sell kiosk has a "Walk here to sell" prompt
-- [ ] No error spam in Output
-- [ ] Harvest works (crops disappear, cash increases)
-
-### ⚠️ Bad signs (report these):
-- [ ] Plants still look like yellow boxes
-- [ ] Planter borders don't appear or don't disappear when planted
-- [ ] Sell kiosk is glitchy or has floating text
-- [ ] Sell pad is hard to find or unclear
-- [ ] Game crashes
-- [ ] Output shows Lua errors
+- [ ] **Seedling appears** when you pick a seed (not instant, takes 1-2 sec)
+- [ ] **Plant grows smoothly** over ~60 sec (visible progression, not jumpy)
+- [ ] **Plant glows when ripe** (distinct visual: stem stops, flower glows, no green border)
+- [ ] **Harvest popup shows** when you walk over ripe plant (`+1 emoji name`)
+- [ ] **Plant disappears** after harvest (planter returns to empty + green border reappears)
+- [ ] **Cash increases** when you walk on sell pad
+- [ ] **No error spam** in Output panel
+- [ ] **DEV MODE badge visible** (red, top-left)
 
 ---
 
-## 📸 How to send me feedback
+## ⚠️ Bad Signs (Report These!)
 
-1. Take screenshots of:
-   - A planter **before** planting (green border visible)
-   - A planter **while growing** (plant sprouting, border gone)
-   - A planter **when ripe** (glowing bloom, emoji above)
-   - The **sell kiosk** from different angles
-   - Any **errors** in the Output panel
-
-2. Save them to `~/Dev/bloom-and-burgle/debug/` with names like:
-   - `planter-empty.png`
-   - `planter-growing.png`
-   - `planter-ripe.png`
-   - `sell-kiosk.png`
-   - `errors.png` (if any)
-
-3. Send message: **"Screenshots in debug/ folder, [brief description]"**
+- [ ] Plants still look like **yellow boxes** or **unfinished**
+- [ ] Plants **don't grow** (stay same size)
+- [ ] Plants **disappear without a popup** (looks like a bug)
+- [ ] **Walking over ripe plant does nothing** (need to find alternative harvest method)
+- [ ] **No visual difference** between growing and ripe
+- [ ] **Sell pad is confusing** or hard to find
+- [ ] **Output panel has errors** (red text)
+- [ ] **Game crashes** during play
 
 ---
 
-## 🔧 If something breaks
+## 📸 How to Send Feedback
 
-If you see errors in Output:
-1. **Copy the error message** from the Output panel
-2. **Right-click → Clear** to clear the output
-3. **Play again** and try to reproduce it
-4. **Screenshot the error** with context
-5. **Send me the error + what you did**
+If something looks wrong:
 
----
+1. **Take a screenshot** from Play mode (showing the issue)
+2. **Save to:** `~/Dev/bloom-and-burgle/debug/` with name like `plants-disappear.png`
+3. **Send a 1-2 sentence description** of what you saw
 
-## 🎯 The real test: Does it FEEL like a game now?
+**Example:**
+> "Screenshot in debug/ folder. Plants grow fine but the harvest popup never shows — I walk over them and nothing happens."
 
-Compare to the earlier screenshots:
-- Is this visually more polished?
-- Can you tell what to do without reading instructions?
-- Does the sell area feel less weird?
-- Do the plants feel rewarding to watch grow?
-
-Send honest feedback. I'll iterate fast.
+I'll analyze the image + description and fix it within 1-2 hours.
 
 ---
 
-## 📋 Next fixes coming if needed
+## 🎯 The Real Question
 
-Based on your feedback, I'll prioritize:
-1. **Different plant varieties** (not all blue/purple, actual visual variety)
-2. **Harvest popups** ("+10 cash!" appears when you sell)
-3. **Sounds** (planting, growing, harvesting, selling sfx)
-4. **Camera improvements** (better angle to see the plot)
-5. **Tutorial arrows** (pointing to SHOP, then to PLANT, then to SELL)
-6. **Stealing mechanics** (make them visible and fun, not abstract)
+**Does this FEEL better than "yellow boxes disappearing mysteriously"?**
 
-But first, **test what I just shipped**. Is it better? What's still broken?
+- Can you tell when a plant is ready? ✅ (glows + no green border)
+- Do you know what to do to harvest? ✅ (walk on it)
+- Do you get satisfying feedback? ✅ (popup confirms harvest)
+- Does the game feel like an actual game yet? 🤔 (let me know!)
 
 ---
 
-**Commit: 1b664a5**  
-Push back with screenshots + feedback.
+## 🛠 If You Break Something
+
+If you want to reset:
+
+**While in Studio:**
+```bash
+# Stop Play (press Stop button in Studio)
+cd ~/Dev/bloom-and-burgle
+bash scripts/build.sh      # rebuild
+# Press Play again
+```
+
+Or if Studio is totally broken:
+```bash
+# Close & reopen BloomAndBurgle.rbxlx in Roblox Studio
+```
+
+---
+
+## 💭 What's Next
+
+Once this feels solid, next fixes will be:
+1. **Inventory chip** (so you can see harvested crops before selling)
+2. **Sound effects** (plant, harvest, sell sounds)
+3. **More plant varieties** (visual diversity, not all purple)
+4. **Stealing mechanics** (make them visible, not abstract)
+
+But first — **test this cycle and tell me if the harvest feel is better**.
+
+**Commit: 6ca873c** | Test now, send feedback!
