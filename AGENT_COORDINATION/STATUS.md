@@ -3,9 +3,9 @@
 > Live "who's doing what". Update on every state change.
 
 ```
-G-Tard (Mac):  ✅ SMOKE TEST PASSING — BAB-002 verified, toolchain complete, all P0s shipped
+G-Tard (Mac):  ✅ BAB-007 IDs WIRED + VALIDATED — 11/11 asset IDs confirmed live on Roblox
 G-Tard Lin:    ✅ BAB-002 implementation complete + verified
-Retard:        🛌 Sleeping — all asks met
+Retard:        ☕ Awake — needs to provide Open Cloud API key for live publish
 
 Last live build: b0f85d7 (BAB-007 gamepass IDs scaffold + BAB-002.1 legacy save fix) @ 23:58 EDT
 Place ID: 93948369125480   (confirmed live via execute_luau — matches MEMORY)
