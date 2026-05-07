@@ -10,13 +10,15 @@ local Workspace = game:GetService("Workspace")
 
 -- Default pass IDs (replace with real ones from the Roblox dashboard).
 -- Set Workspace:SetAttribute("BB_GAMEPASS_<KEY>", id) at runtime to override.
+-- BAB-007: Gamepass IDs (replace with real IDs from Roblox Creator Dashboard once created).
+-- Placeholder values shown; when you create them, update these and commit.
 local DEFAULT_PASS_IDS = {
-	["2X_CASH"] = 0,         -- Cash 2x forever
-	["4X_CASH"] = 0,         -- Cash 4x forever
-	["AUTO_HARVEST"] = 0,    -- not yet wired (we already auto-harvest!)
-	["ANTI_THEFT"] = 0,      -- shield
-	["VIP_PLOT"] = 0,        -- bigger plot, faster grow
-	["MYTHIC_HUNTER"] = 0,   -- 4x mutation chance
+	["2X_CASH"] = 0,         -- 2x money forever (199R)
+	["4X_CASH"] = 0,         -- 4x money forever (499R)
+	["AUTO_HARVEST"] = 0,    -- auto-harvest every 8 hours (349R)
+	["ANTI_THEFT"] = 0,      -- shield blocks steals (299R)
+	["VIP_PLOT"] = 0,        -- larger plot + 2x growth (399R)
+	["MYTHIC_HUNTER"] = 0,   -- 4x mutation chance (799R)
 }
 
 local function passId(key: string): number
@@ -29,6 +31,9 @@ local function ownsPass(player: Player, key: string): boolean
 	local id = passId(key)
 	if id <= 0 then return false end
 	local ok, owns = pcall(function()
+		return -- TODO: gamepass check will fail until IDs are real. For now, always return false
+		-- to prevent errors with placeholder IDs.
+		if id == 0 then return false end
 		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
 	end)
 	return ok and owns or false
