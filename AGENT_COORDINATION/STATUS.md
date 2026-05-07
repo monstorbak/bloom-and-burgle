@@ -18,8 +18,8 @@ WhatsApp bus: +17242606467 (G-Tard Lin DM) + 120363425074133557@g.us (group)
 
 ## In flight
 
-- **G-Tard Lin** — BAB-002 in-review. Plant + plot + stash persistence + 24h offline catchup. Also patches latent PlotManager rebuild gap and starter-pack one-shot exploit. Code reviewed, clean. **Studio test BLOCKED** — see Blocked below.
-- **G-Tard (Mac)** — awaiting toolchain unblock to run [BAB-002] repros.
+- **G-Tard Lin** — BAB-002 in-review. Plant + plot + stash persistence + 24h offline catchup. Also patches latent PlotManager rebuild gap and starter-pack one-shot exploit. Code reviewed, clean.
+- **G-Tard (Mac)** — ✅ BAB-002 Studio code verified + synced. All 4 scripts (DataStore, PlantHandler, PlotManager, LeaderstatsScript) in Studio, syntax clean, `_G.PlantHandler` export wired. **Awaiting DataStore permission enable** (see Blocked).
 
 ## Recently done
 
@@ -31,8 +31,6 @@ WhatsApp bus: +17242606467 (G-Tard Lin DM) + 120363425074133557@g.us (group)
 
 ## Blocked / waiting
 
-- **[BAB-002] Studio test** blocked on Mac toolchain:
-  - rokit + rojo not installed on this Mac (`which rokit` / `which rojo` both empty).
-  - No active `rojo serve` process; Studio still shows pre-BAB-002 code.
-  - Studio file currently named "Place1" — may be a scratch place, not the BB production file (though IDs match).
-  - **Asks for Retard:** install rokit (`brew install rokit && rokit install` in `~/Dev/bloom-and-burgle`), confirm correct .rbxl file is open, click Connect on the Rojo Studio plugin once `rojo serve` is up.
+- **[BAB-002] DataStore API access** blocked on Studio setting:
+  - Console shows `DataStoreService: StudioAccessToApisNotAllowed` when DataStore tries to load.
+  - **Asks for Retard:** In Roblox Studio, open Game Settings (top menu or gear icon) → go to Security tab → toggle "Studio Access to API Services" = ON. Then restart Play in Studio and BAB-002 can run a real smoke test.
