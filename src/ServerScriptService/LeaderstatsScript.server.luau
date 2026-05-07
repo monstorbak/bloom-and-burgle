@@ -8,6 +8,9 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- DataStore is a ModuleScript sibling. WaitForChild guards against script
 -- load order races on first server boot.
 local DataStore = require(ServerScriptService:WaitForChild("DataStore") :: ModuleScript)
+local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript)
+
+DevMode.init()
 
 local active: { [number]: boolean } = {}
 
@@ -114,6 +117,10 @@ Players.PlayerAdded:Connect(function(player)
 	end
 
 	active[player.UserId] = true
+
+	-- BAB-DEV: dev-mode buffs (cash + seeds) — only takes effect if Workspace.DevMode is true.
+	DevMode.applyTo(player)
+
 	-- Auto-save loop
 	task.spawn(function()
 		while active[player.UserId] do

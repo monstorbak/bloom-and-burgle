@@ -19,6 +19,35 @@ push_one() {
     local NEW_CONTENT
     NEW_CONTENT=$(cat "$local_path")
 
+    # BAB-DEV: Always normalize the target Instance type FIRST.
+    # If a previous sync left it as the wrong type (Folder), destroy + recreate.
+    if [ -n "$class_name" ]; then
+        local NORMALIZE_CODE
+        NORMALIZE_CODE=$(python3 -c "
+studio_path = '$studio_path'
+class_name = '$class_name'
+parts = studio_path.split('.')
+assert parts[0] == 'game'
+lines = ['local node = game:GetService(\\\"' + parts[1] + '\\\")']
+for p in parts[2:-1]:
+    lines.append('node = node:WaitForChild(\\\"' + p + '\\\")')
+leaf = parts[-1]
+lines.append('local existing = node:FindFirstChild(\\\"' + leaf + '\\\")')
+lines.append('if existing and existing.ClassName ~= \\\"' + class_name + '\\\" then existing:Destroy() existing = nil end')
+lines.append('if not existing then')
+lines.append('  local m = Instance.new(\\\"' + class_name + '\\\")')
+lines.append('  m.Name = \\\"' + leaf + '\\\"')
+lines.append('  m.Parent = node')
+lines.append('  return \\\"created\\\"')
+lines.append('end')
+lines.append('return \\\"ok\\\"')
+print(chr(10).join(lines))
+")
+        local NORM_PAYLOAD
+        NORM_PAYLOAD=$(jq -n --arg c "$NORMALIZE_CODE" '{method:"tools/call",params:{name:"execute_luau",arguments:{code:$c}},timeoutMs:10000}')
+        curl -sS -X POST "$BRIDGE/rpc" -H "Content-Type: application/json" -d "$NORM_PAYLOAD" > /dev/null
+    fi
+
     # Get current content (may fail if script doesn't exist yet)
     local READ_BODY
     READ_BODY=$(jq -n --arg t "$studio_path" '{method:"tools/call",params:{name:"script_read",arguments:{target_file:$t,should_read_entire_file:true}},timeoutMs:10000}')

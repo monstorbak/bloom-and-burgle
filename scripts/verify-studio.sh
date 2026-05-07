@@ -8,6 +8,7 @@ cd "$(dirname "$0")/.."
 LUA_CHECK=$(python3 <<'PYEOF'
 expected = [
     ("game.ServerScriptService.DataStore", "ModuleScript"),
+    ("game.ServerScriptService.DevMode", "ModuleScript"),
     ("game.ServerScriptService.PlantVisuals", "ModuleScript"),
     ("game.ServerScriptService.PlantHandler", "Script"),
     ("game.ServerScriptService.PlotManager", "Script"),

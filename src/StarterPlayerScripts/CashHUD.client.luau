@@ -35,6 +35,35 @@ screen.IgnoreGuiInset = true
 screen.DisplayOrder = 10
 screen.Parent = pg
 
+-- BAB-DEV: prominent DEV MODE badge whenever Workspace.DevMode is true
+local Workspace = game:GetService("Workspace")
+local devBadge = Instance.new("Frame")
+devBadge.Name = "DevModeBadge"
+devBadge.Size = UDim2.fromOffset(180, 32)
+devBadge.AnchorPoint = Vector2.new(0, 0)
+devBadge.Position = UDim2.new(0, 16, 0, 16)
+devBadge.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+devBadge.BorderSizePixel = 0
+devBadge.Visible = false
+devBadge.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 8); c.Parent = devBadge
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 255, 255); s.Thickness = 2; s.Parent = devBadge
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "⚠ DEV MODE"
+	lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	lbl.Font = Enum.Font.FredokaOne
+	lbl.TextScaled = true
+	lbl.Parent = devBadge
+end
+local function refreshDevBadge()
+	devBadge.Visible = Workspace:GetAttribute("DevMode") == true
+end
+refreshDevBadge()
+Workspace:GetAttributeChangedSignal("DevMode"):Connect(refreshDevBadge)
+
 -- ── Top-right cash chip ──────────────────────────────────────────────
 local cashFrame = Instance.new("Frame")
 cashFrame.Size = UDim2.new(0, 240, 0, 70)
