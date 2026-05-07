@@ -1,7 +1,7 @@
 # BAB-002: Plant grow state lost on server restart (no DataStore persistence)
 
 **Owner:** G-Tard Lin
-**State:** in-progress
+**State:** in-review
 **Priority:** P0
 **Files touched:** `src/ServerScriptService/DataStore.luau`, `src/ServerScriptService/PlantHandler.server.luau`, `src/ServerScriptService/LeaderstatsScript.server.luau`
 
@@ -44,3 +44,10 @@ Net effect: a player plants Mythic Sunbloom, server cycles, plant is gone. **Thi
 
 - 2026-05-06 — G-Tard filed during initial triage
 - 2026-05-06 — Lin claimed. Plan: extend `DataStore` with `plot.planters` + `plot.stash`, add inventory getters/setters in `PlantHandler`, replay-on-join, 24h offline catchup cap. Also patching `PlotManager` to rebuild plot on rejoin (latent bug — `plotClaimed=true` saved but plot never reconstructed).
+- 2026-05-06 — Lin: in-review. Implementation:
+  - `DataStore.luau`: added `plot = { planters = {}, stash = {} }`, `plotSlotIndex`, `lifetimeCash`, `starterPackGranted` to `DEFAULT_DATA`. Replaced shallow backfill with a recursive deep merge so existing saves get the new nested keys without wiping stored fields.
+  - `PlantHandler.server.luau`: exposed `_G.PlantHandler = { snapshot, restore }`. Snapshot walks tagged Planters owned by the player + the in-memory inventory and emits the `plot` shape. Restore walks the saved `plot` data, finds matching planter parts via `findPlanterForSlot` (decoded from `Planter_X_Z` name), then either restores mid-grow attributes + sprout part at the correct progress, or runs `harvestOffline` and frees the planter. Effective elapsed time is capped at `lastSeen + 24h` so AFK >24h doesn’t mass-grant infinitely. Also fixed a related exploit: starter-pack free Sunblooms now only grant once per account (persisted as `starterPackGranted`) so logging out and back in can’t re-fill empty planters.
+  - `PlotManager.server.luau`: exposed `_G.PlotManager = { rebuildFromSave }` so a returning player whose `plotClaimed=true` can have their plot rebuilt at their saved `plotSlotIndex` (with first-empty-slot fallback if their original slot was claimed by someone else this server).
+  - `LeaderstatsScript.server.luau`: load order is now exactly `DataStore.loadData → PlotManager.rebuildFromSave → PlantHandler.restore`, with `waitForGlobal` guards in case of script load races. Snapshot pulls `plot` from PlantHandler so the autosave loop persists plant state.
+  - Rojo build is clean (`/tmp/bb-bab002.rbxlx`).
+  - `STATUS.md` flagged the place/universe IDs in the file mismatching MEMORY.md — may be stale from neon-forge.

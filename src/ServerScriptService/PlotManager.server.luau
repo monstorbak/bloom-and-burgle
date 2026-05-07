@@ -208,6 +208,62 @@ for i = 1, NUM_PLOT_SLOTS do
 	end)
 end
 
+-- BAB-002: Public API for LeaderstatsScript to rebuild a plot when a saved
+-- player rejoins. We have to skip the normal claim-pad flow since their
+-- `plotClaimed=true` would block re-claim, and the pad may have already been
+-- consumed by another joiner anyway (slot tracking is per-server, not per-save).
+local API = {}
+
+-- Try to claim the saved slot for `player`. Returns the rebuilt plot model on
+-- success, or nil if the slot was unavailable (in which case the caller should
+-- treat the player as un-claimed and let them touch a fresh ClaimPad).
+function API.rebuildFromSave(player: Player, savedSlot: number): Model?
+	if typeof(savedSlot) ~= "number" then return nil end
+	local s = slots[savedSlot]
+	if not s then return nil end
+	if s.player and s.player ~= player then
+		-- Slot taken by someone else this server — fall back: assign first
+		-- empty slot so the player still gets a plot.
+		local fallback: number? = nil
+		for i = 1, NUM_PLOT_SLOTS do
+			if not slots[i].player then fallback = i; break end
+		end
+		if not fallback then return nil end
+		savedSlot = fallback
+		s = slots[savedSlot]
+	end
+
+	-- Consume claim pad if still standing.
+	if s.claimPad then
+		s.claimPad:Destroy()
+		s.claimPad = nil
+	end
+
+	s.player = player
+	player:SetAttribute("PlotClaimed", true)
+	player:SetAttribute("PlotSlotIndex", savedSlot)
+
+	local plot = buildPlot(player, slotPosition(savedSlot))
+	s.plot = plot
+
+	-- Teleport player to plot once the character exists.
+	local function teleport(character: Model)
+		local hrp = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if hrp then
+			hrp.CFrame = CFrame.new(slotPosition(savedSlot) + Vector3.new(0, 5, 0))
+		end
+	end
+	if player.Character then
+		teleport(player.Character)
+	else
+		player.CharacterAdded:Once(teleport)
+	end
+
+	return plot
+end
+
+_G.PlotManager = API
+
 -- ReturnToPlot RemoteEvent: client-requested teleport back to player's plot.
 -- Used by the 🏠 RETURN TO PLOT button after death/respawn.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
