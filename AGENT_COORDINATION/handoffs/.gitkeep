@@ -1,0 +1,2 @@
+# Handoffs live here when one agent passes context to the other.
+# Format: HANDOFF-YYYY-MM-DD-from-<src>-to-<dst>.md

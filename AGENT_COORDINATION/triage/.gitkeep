@@ -1,0 +1,4 @@
+# Triage attachments live here:
+# - console captures (BAB-NNN-fail-N.txt)
+# - screenshots (BAB-NNN-screen-N.png)
+# - test repros (BAB-NNN-repro-N.luau)
