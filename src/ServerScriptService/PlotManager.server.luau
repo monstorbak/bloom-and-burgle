@@ -75,7 +75,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	label.TextScaled = true
 	label.Parent = sgui
 
-	-- Planters (3x3 grid)
+	-- BAB-011: Planters (3x3 grid) with visual feedback: borders + glow border when empty
 	for x = -1, 1 do
 		for z = -1, 1 do
 			local planter = Instance.new("Part")
@@ -92,36 +92,119 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			planter:AddTag("Planter")
 			planter:SetAttribute("OwnerUserId", player.UserId)
 			planter:SetAttribute("IsEmpty", true)
+
+			-- BAB-011: Glowing border frame when empty (visual hint to interact)
+			local border = Instance.new("Part")
+			border.Name = "EmptyBorder"
+			border.Shape = Enum.PartType.Block
+			border.Size = Vector3.new(6.2, 0.2, 6.2)
+			border.Position = planter.Position + Vector3.new(0, -0.7, 0)
+			border.Anchored = true
+			border.Material = Enum.Material.Neon
+			border.Color = Color3.fromRGB(100, 200, 100)  -- soft green
+			border.CanCollide = false
+			border.CanTouch = false
+			border.Parent = planter
+
+			-- When planter isn't empty, hide border
+			planter:SetAttribute("BorderPart", border)
 		end
 	end
 
-	-- Sell pad (lime green, far edge)
-	local sellPad = Instance.new("Part")
-	sellPad.Name = "SellPad"
-	sellPad.Size = Vector3.new(8, 1, 8)
-	sellPad.Position = origin + Vector3.new(15, 1.5, 15)
-	sellPad.Anchored = true
-	sellPad.Material = Enum.Material.Neon
-	sellPad.Color = SELL_PAD_COLOR
-	sellPad.TopSurface = Enum.SurfaceType.Smooth
-	sellPad.Parent = plot
-	sellPad:AddTag("SellPad")
-	sellPad:SetAttribute("OwnerUserId", player.UserId)
+	-- BAB-011: Sell kiosk (clean model with base + post + sign + glow ring)
+	local sellModel = Instance.new("Model")
+	sellModel.Name = "SellKiosk"
+	sellModel.Parent = plot
 
-	local sellGui = Instance.new("BillboardGui")
-	sellGui.Size = UDim2.fromOffset(180, 50)
-	sellGui.StudsOffset = Vector3.new(0, 4, 0)
-	sellGui.AlwaysOnTop = true
-	sellGui.Parent = sellPad
-	local sellText = Instance.new("TextLabel")
-	sellText.Size = UDim2.fromScale(1, 1)
-	sellText.BackgroundTransparency = 1
-	sellText.Text = "💰 SELL 💰"
-	sellText.TextColor3 = Color3.fromRGB(255, 255, 255)
-	sellText.TextStrokeTransparency = 0
-	sellText.TextScaled = true
-	sellText.Font = Enum.Font.FredokaOne
-	sellText.Parent = sellGui
+	-- Base platform (glowing green pad)
+	local base = Instance.new("Part")
+	base.Name = "Base"
+	base.Size = Vector3.new(12, 0.8, 12)
+	base.Position = origin + Vector3.new(15, 0.4, 15)
+	base.Anchored = true
+	base.Material = Enum.Material.Neon
+	base.Color = SELL_PAD_COLOR
+	base.TopSurface = Enum.SurfaceType.Smooth
+	base.BottomSurface = Enum.SurfaceType.Smooth
+	base.CanCollide = false
+	base.CanTouch = false
+	base.Parent = sellModel
+
+	-- Glow ring around base (emissive)
+	local ring = Instance.new("Part")
+	ring.Name = "GlowRing"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(1.2, 12, 12)
+	ring.Position = origin + Vector3.new(15, 0.8, 15)
+	ring.Anchored = true
+	ring.Material = Enum.Material.Neon
+	ring.Color = Color3.fromRGB(100, 255, 100)
+	ring.CanCollide = false
+	ring.CanTouch = false
+	ring.CFrame = CFrame.new(ring.Position) * CFrame.Angles(0, 0, math.rad(90))
+	ring.Parent = sellModel
+
+	-- Central post
+	local post = Instance.new("Part")
+	post.Name = "Post"
+	post.Shape = Enum.PartType.Cylinder
+	post.Size = Vector3.new(4.5, 2.4, 0.6)
+	post.Position = origin + Vector3.new(15, 1.8, 15)
+	post.Anchored = true
+	post.Material = Enum.Material.Metal
+	post.Color = Color3.fromRGB(200, 200, 200)
+	post.CanCollide = false
+	post.CanTouch = false
+	post.Parent = sellModel
+
+	-- Sign (neon board with text)
+	local sign = Instance.new("Part")
+	sign.Name = "Sign"
+	sign.Size = Vector3.new(6, 3, 0.4)
+	sign.Position = origin + Vector3.new(15, 3.2, 15)
+	sign.Anchored = true
+	sign.Material = Enum.Material.Neon
+	sign.Color = Color3.fromRGB(0, 200, 0)
+	sign.TopSurface = Enum.SurfaceType.Smooth
+	sign.CanCollide = false
+	sign.CanTouch = false
+	sign.Parent = sellModel
+
+	local signGui = Instance.new("SurfaceGui")
+	signGui.Face = Enum.NormalId.Front
+	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	signGui.PixelsPerStud = 40
+	signGui.Parent = sign
+
+	local signText = Instance.new("TextLabel")
+	signText.Size = UDim2.fromScale(1, 1)
+	signText.BackgroundTransparency = 0.3
+	signText.BackgroundColor3 = Color3.fromRGB(0, 40, 0)
+	signText.Text = "💰\nSELL\n💰"
+	signText.TextColor3 = Color3.fromRGB(255, 255, 255)
+	signText.TextStrokeTransparency = 0
+	signText.TextScaled = true
+	signText.Font = Enum.Font.FredokaOne
+	signText.Parent = signGui
+
+	-- Floating prompt above sign
+	local promptGui = Instance.new("BillboardGui")
+	promptGui.Size = UDim2.fromOffset(200, 60)
+	promptGui.StudsOffset = Vector3.new(0, 3.5, 0)
+	promptGui.AlwaysOnTop = true
+	promptGui.Parent = sign
+	local promptText = Instance.new("TextLabel")
+	promptText.Size = UDim2.fromScale(1, 1)
+	promptText.BackgroundTransparency = 1
+	promptText.Text = "Walk here to sell"
+	promptText.TextColor3 = Color3.fromRGB(200, 255, 200)
+	promptText.TextScaled = true
+	promptText.Font = Enum.Font.GothamBold
+	promptText.Parent = promptGui
+
+	-- Mark the base as sellable collision zone
+	base:AddTag("SellPad")
+	base:SetAttribute("OwnerUserId", player.UserId)
 
 	plot.Parent = Workspace
 	return plot

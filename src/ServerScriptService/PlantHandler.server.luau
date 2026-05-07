@@ -15,6 +15,8 @@ local RunService = game:GetService("RunService")
 local CollectionService = game:GetService("CollectionService")
 
 local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local ServerScriptService = game:GetService("ServerScriptService")
+local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
 
 local SellPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellPlants") :: RemoteEvent
 local PlantSeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PlantSeed") :: RemoteEvent
@@ -69,19 +71,8 @@ local function plantSeedAt(player: Player, planter: BasePart, speciesId: string,
 	planter:SetAttribute("PlantedAt", os.time())
 	planter:SetAttribute("GrowSeconds", species.growSeconds)
 
-	-- Visual seedling
-	local existing = planter:FindFirstChild("Plant")
-	if existing then existing:Destroy() end
-	local sprout = Instance.new("Part")
-	sprout.Name = "Plant"
-	sprout.Size = Vector3.new(1, 0.5, 1)
-	sprout.Position = planter.Position + Vector3.new(0, 1.5, 0)
-	sprout.Anchored = true
-	sprout.CanCollide = false
-	sprout.Material = Enum.Material.Neon
-	sprout.Color = Color3.new(species.color[1], species.color[2], species.color[3])
-	sprout.TopSurface = Enum.SurfaceType.Smooth
-	sprout.Parent = planter
+	-- BAB-011: Build a real plant model (stem + leaves + flower) instead of a yellow box.
+	PlantVisuals.create(planter, species)
 	return true
 end
 
@@ -96,11 +87,9 @@ RunService.Heartbeat:Connect(function()
 		local elapsed = now - plantedAt
 		local progress = math.clamp(elapsed / growSeconds, 0, 1)
 
-		local sprout = planter:FindFirstChild("Plant") :: BasePart?
-		if sprout then
-			local h = 0.5 + progress * 5.0
-			sprout.Size = Vector3.new(1 + progress * 1.5, h, 1 + progress * 1.5)
-			sprout.Position = planter.Position + Vector3.new(0, 0.75 + h / 2, 0)
+		local plantModel = planter:FindFirstChild("Plant") :: Model?
+		if plantModel and plantModel:IsA("Model") then
+			PlantVisuals.update(plantModel, progress)
 		end
 
 		if progress >= 1.0 then
@@ -127,7 +116,21 @@ RunService.Heartbeat:Connect(function()
 			planter:SetAttribute("PlantedSpecies", nil)
 			planter:SetAttribute("PlantedAt", nil)
 			planter:SetAttribute("GrowSeconds", nil)
-			if sprout then sprout:Destroy() end
+			if plantModel and plantModel.Parent then plantModel:Destroy() end
+
+			-- BAB-011: Show empty border
+			local border = planter:FindFirstChild("EmptyBorder") :: BasePart?
+			if border then border.Transparency = 0 end
+		end
+		
+		-- BAB-011: Update planter border visibility (hide when planted)
+		local border = planter:FindFirstChild("EmptyBorder") :: BasePart?
+		if border then
+			if planter:GetAttribute("IsEmpty") then
+				border.Transparency = 0  -- visible
+			else
+				border.Transparency = 1  -- hidden
+			end
 		end
 	end
 end)
@@ -227,21 +230,9 @@ end)
 -- ============================================================================
 
 local function buildSproutFor(planter: BasePart, species: any, progressOverride: number?)
-	-- Mirror of the visual sprout block in plantSeedAt + Heartbeat tick.
-	local existing = planter:FindFirstChild("Plant")
-	if existing then existing:Destroy() end
-	local sprout = Instance.new("Part")
-	sprout.Name = "Plant"
-	sprout.Anchored = true
-	sprout.CanCollide = false
-	sprout.Material = Enum.Material.Neon
-	sprout.Color = Color3.new(species.color[1], species.color[2], species.color[3])
-	sprout.TopSurface = Enum.SurfaceType.Smooth
-	local progress = progressOverride or 0
-	local h = 0.5 + progress * 5.0
-	sprout.Size = Vector3.new(1 + progress * 1.5, h, 1 + progress * 1.5)
-	sprout.Position = planter.Position + Vector3.new(0, 0.75 + h / 2, 0)
-	sprout.Parent = planter
+	-- BAB-011: Build a real plant model at the saved progress.
+	local model = PlantVisuals.create(planter, species)
+	PlantVisuals.update(model, progressOverride or 0)
 end
 
 local function harvestOffline(player: Player, speciesId: string, species: any)
