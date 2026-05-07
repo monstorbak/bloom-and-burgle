@@ -97,6 +97,12 @@ end
 
 local kiosk = buildKiosk()
 
+-- BAB-011: Server handler for SHOP button (client → server → client open).
+-- Without this, clicking the SHOP UI button does nothing.
+OpenShopRE.OnServerEvent:Connect(function(player)
+	OpenShopRE:FireClient(player)
+end)
+
 -- Buy seed: validate, deduct cash, add to stash
 BuySeedRE.OnServerEvent:Connect(function(player, speciesId, qty)
 	if typeof(speciesId) ~= "string" then return end

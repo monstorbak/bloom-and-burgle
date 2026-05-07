@@ -50,6 +50,35 @@ sys.stdout.write('\n'.join(out_lines))
             echo "❌ $studio_path missing and no className supplied" >&2
             return 1
         fi
+        # BAB-011 fix: Studio MCP multi_edit ignores className for new scripts (creates Folder).
+        # Pre-create the correct Instance type via execute_luau, THEN write source.
+        local CREATE_CODE
+        CREATE_CODE=$(python3 -c "
+import sys
+studio_path = '$studio_path'
+class_name = '$class_name'
+# studio_path looks like: game.ServerScriptService.PlantVisuals
+parts = studio_path.split('.')
+assert parts[0] == 'game'
+# parent = game:GetService(parts[1]):FindFirstChild(parts[2]) ... etc
+lines = ['local node = game:GetService(\\\"' + parts[1] + '\\\")']
+for p in parts[2:-1]:
+    lines.append('node = node:WaitForChild(\\\"' + p + '\\\")')
+leaf = parts[-1]
+lines.append('local existing = node:FindFirstChild(\\\"' + leaf + '\\\")')
+lines.append('if existing and existing.ClassName ~= \\\"' + class_name + '\\\" then existing:Destroy() existing = nil end')
+lines.append('if not existing then')
+lines.append('  local m = Instance.new(\\\"' + class_name + '\\\")')
+lines.append('  m.Name = \\\"' + leaf + '\\\"')
+lines.append('  m.Parent = node')
+lines.append('end')
+lines.append('return \\\"ensured ' + leaf + ' as ' + class_name + '\\\"')
+print(chr(10).join(lines))
+")
+        local CREATE_PAYLOAD
+        CREATE_PAYLOAD=$(jq -n --arg c "$CREATE_CODE" '{method:"tools/call",params:{name:"execute_luau",arguments:{code:$c}},timeoutMs:10000}')
+        curl -sS -X POST "$BRIDGE/rpc" -H "Content-Type: application/json" -d "$CREATE_PAYLOAD" > /dev/null
+        # Now write source via multi_edit (script now exists with correct ClassName).
         EDITS_JSON=$(jq -n --arg n "$NEW_CONTENT" '{edits:[{old_string:"",new_string:$n}]}')
         local PAYLOAD
         PAYLOAD=$(jq -n --arg p "$studio_path" --arg c "$class_name" --argjson e "$EDITS_JSON" \

@@ -106,8 +106,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			border.CanTouch = false
 			border.Parent = planter
 
-			-- When planter isn't empty, hide border
-			planter:SetAttribute("BorderPart", border)
+			-- The border is a child named "EmptyBorder"; PlantHandler finds it via FindFirstChild.
 		end
 	end
 
