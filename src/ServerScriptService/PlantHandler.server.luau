@@ -92,35 +92,14 @@ RunService.Heartbeat:Connect(function()
 			PlantVisuals.update(plantModel, progress)
 		end
 
-		if progress >= 1.0 then
-			local speciesId = planter:GetAttribute("PlantedSpecies") :: string
-			local species = PlantData.get(speciesId)
-			local ownerId = planter:GetAttribute("OwnerUserId") :: number
-			local owner = Players:GetPlayerByUserId(ownerId)
-			if owner and species then
-				-- Roll mutation
-				local mutationId = ""
-				if math.random() <= species.mutationChance then
-					local mut = PlantData.rollMutation()
-					if mut then
-						mutationId = mut.id
-					end
-				end
-				local key = speciesId .. ":" .. mutationId
-				local inv = getInv(owner)
-				inv[key] = (inv[key] or 0) + 1
-				owner:SetAttribute("PlantsHarvested", (owner:GetAttribute("PlantsHarvested") or 0) + 1)
+		if progress >= 1.0 and not planter:GetAttribute("Ripe") then
+			-- BAB-011: Plants now STAY ripe (waiting for player to walk over).
+			-- Just mark them ripe; auto-harvest only happens via planter Touched (below)
+			-- or via offline catch-up (handled in PlantHandler.restore).
+			planter:SetAttribute("Ripe", true)
+			if plantModel and plantModel:IsA("Model") then
+				PlantVisuals.markRipe(plantModel, true)
 			end
-
-			planter:SetAttribute("IsEmpty", true)
-			planter:SetAttribute("PlantedSpecies", nil)
-			planter:SetAttribute("PlantedAt", nil)
-			planter:SetAttribute("GrowSeconds", nil)
-			if plantModel and plantModel.Parent then plantModel:Destroy() end
-
-			-- BAB-011: Show empty border
-			local border = planter:FindFirstChild("EmptyBorder") :: BasePart?
-			if border then border.Transparency = 0 end
 		end
 		
 		-- BAB-011: Update planter border visibility (hide when planted)
@@ -188,6 +167,75 @@ end
 
 for _, sellPad in CollectionService:GetTagged("SellPad") do wireSellPad(sellPad) end
 CollectionService:GetInstanceAddedSignal("SellPad"):Connect(wireSellPad)
+
+-- BAB-011: Harvest a single ripe planter for the player. Adds to stash.
+-- Returns true if something was actually harvested.
+local HarvestPopupRE = ReplicatedStorage:WaitForChild("RemoteEvents"):FindFirstChild("HarvestPopup")
+if not HarvestPopupRE then
+	HarvestPopupRE = Instance.new("RemoteEvent")
+	HarvestPopupRE.Name = "HarvestPopup"
+	HarvestPopupRE.Parent = ReplicatedStorage:WaitForChild("RemoteEvents")
+end
+
+local function harvestPlanter(player: Player, planter: BasePart): boolean
+	if not planter:GetAttribute("Ripe") then return false end
+	if planter:GetAttribute("OwnerUserId") ~= player.UserId then return false end
+	local speciesId = planter:GetAttribute("PlantedSpecies") :: string
+	local species = PlantData.get(speciesId)
+	if not species then return false end
+
+	-- Roll mutation
+	local mutationId = ""
+	if math.random() <= species.mutationChance then
+		local mut = PlantData.rollMutation()
+		if mut then mutationId = mut.id end
+	end
+	local key = speciesId .. ":" .. mutationId
+	local inv = getInv(player)
+	inv[key] = (inv[key] or 0) + 1
+	player:SetAttribute("PlantsHarvested", (player:GetAttribute("PlantsHarvested") or 0) + 1)
+
+	-- Fire popup to client
+	HarvestPopupRE:FireClient(player, {
+		species = speciesId,
+		mutation = mutationId,
+		emoji = species.emoji,
+		name = species.displayName,
+		position = planter.Position + Vector3.new(0, 5, 0),
+	})
+
+	-- Clear planter
+	local plantModel = planter:FindFirstChild("Plant")
+	if plantModel and plantModel.Parent then plantModel:Destroy() end
+	planter:SetAttribute("IsEmpty", true)
+	planter:SetAttribute("Ripe", false)
+	planter:SetAttribute("PlantedSpecies", nil)
+	planter:SetAttribute("PlantedAt", nil)
+	planter:SetAttribute("GrowSeconds", nil)
+	local border = planter:FindFirstChild("EmptyBorder") :: BasePart?
+	if border then border.Transparency = 0 end
+	return true
+end
+
+-- Wire harvest-on-touch for any planter
+local function wirePlanterHarvest(planter: Instance)
+	if not planter:IsA("BasePart") then return end
+	if planter:GetAttribute("WiredHarvest") then return end
+	planter:SetAttribute("WiredHarvest", true)
+	local cooldown = {}
+	planter.Touched:Connect(function(hit)
+		local char = hit:FindFirstAncestorOfClass("Model")
+		if not char then return end
+		local player = Players:GetPlayerFromCharacter(char)
+		if not player then return end
+		local now = os.clock()
+		if cooldown[player.UserId] and now - cooldown[player.UserId] < 0.5 then return end
+		cooldown[player.UserId] = now
+		harvestPlanter(player, planter)
+	end)
+end
+for _, p in CollectionService:GetTagged("Planter") do wirePlanterHarvest(p) end
+CollectionService:GetInstanceAddedSignal("Planter"):Connect(wirePlanterHarvest)
 
 -- Client-initiated planting (touch a planter via UI)
 PlantSeedRE.OnServerEvent:Connect(function(player, planterRef, speciesId)

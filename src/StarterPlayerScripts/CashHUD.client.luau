@@ -11,6 +11,7 @@ local CollectionService = game:GetService("CollectionService")
 local returnRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ReturnToPlot") :: RemoteEvent
 local OpenShopRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("OpenShop") :: RemoteEvent
 local SellPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellPlants") :: RemoteEvent
+local HarvestPopupRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HarvestPopup") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local pg = player:WaitForChild("PlayerGui")
@@ -160,6 +161,56 @@ end
 refreshSeeds()
 player.AttributeChanged:Connect(function(name)
 	if name:sub(1, 6) == "Stash_" then refreshSeeds() end
+end)
+
+-- BAB-011: Harvest popup — a floating "+1 🌻 Sunbloom" world‐label that floats up.
+HarvestPopupRE.OnClientEvent:Connect(function(data)
+	if typeof(data) ~= "table" then return end
+	local pos = data.position
+	if typeof(pos) ~= "Vector3" then return end
+
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(0.1, 0.1, 0.1)
+	anchor.Position = pos
+	anchor.Parent = workspace
+
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.fromOffset(180, 50)
+	bb.AlwaysOnTop = true
+	bb.StudsOffset = Vector3.new(0, 0, 0)
+	bb.Parent = anchor
+
+	local mutation = data.mutation and data.mutation ~= "" and data.mutation or nil
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = string.format("+1 %s %s%s",
+		tostring(data.emoji or "✨"),
+		tostring(data.name or "crop"),
+		mutation and (" ✨ " .. mutation:upper()) or "")
+	label.TextColor3 = mutation and Color3.fromRGB(255, 220, 80) or Color3.fromRGB(180, 255, 180)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.Parent = bb
+
+	task.spawn(function()
+		local start = anchor.Position
+		for i = 0, 1, 0.04 do
+			if not anchor.Parent then return end
+			anchor.Position = start + Vector3.new(0, i * 4, 0)
+			label.TextTransparency = i
+			label.TextStrokeTransparency = i
+			task.wait(0.04)
+		end
+		anchor:Destroy()
+	end)
 end)
 
 -- ── Top-center objective banner ──────────────────────────────────────
