@@ -36,12 +36,13 @@ local function showPicker(planter: BasePart)
 		end
 	end
 
-	activePicker = Instance.new("ScreenGui")
-	(activePicker :: ScreenGui).Name = "PlanterPicker"
-	(activePicker :: ScreenGui).ResetOnSpawn = false
-	(activePicker :: ScreenGui).IgnoreGuiInset = true
-	(activePicker :: ScreenGui).DisplayOrder = 60
-	(activePicker :: ScreenGui).Parent = pg
+	local picker = Instance.new("ScreenGui")
+	picker.Name = "PlanterPicker"
+	picker.ResetOnSpawn = false
+	picker.IgnoreGuiInset = true
+	picker.DisplayOrder = 60
+	picker.Parent = pg
+	activePicker = picker
 
 	local backdrop = Instance.new("TextButton")
 	backdrop.Size = UDim2.fromScale(1, 1)
@@ -147,29 +148,29 @@ local function showPicker(planter: BasePart)
 	end
 end
 
-local function attachPrompt(planter: Instance)
+-- BAB-011: Server creates the ProximityPrompt (more reliable than client-side).
+-- This client just hooks Triggered on the prompt and shows the seed picker.
+local function hookPlanter(planter: Instance)
 	if not planter:IsA("BasePart") then return end
-	if planter:FindFirstChild("PlantPrompt") then return end
-	-- Only attach for the local player's planters
-	task.spawn(function()
-		-- wait until owner attribute set (race)
-		local tries = 0
-		while planter:GetAttribute("OwnerUserId") == nil and tries < 30 do
-			task.wait(0.2); tries += 1
-		end
-		if planter:GetAttribute("OwnerUserId") ~= player.UserId then return end
+	if planter:GetAttribute("OwnerUserId") ~= player.UserId then
+		-- Wait briefly in case owner attr is being set
+		task.spawn(function()
+			for _ = 1, 30 do
+				task.wait(0.2)
+				if planter:GetAttribute("OwnerUserId") == player.UserId then
+					hookPlanter(planter)
+					return
+				end
+			end
+		end)
+		return
+	end
 
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.Name = "PlantPrompt"
-		prompt.ActionText = "Plant"
-		prompt.ObjectText = "Empty Planter"
-		prompt.HoldDuration = 0
-		prompt.MaxActivationDistance = 12
-		prompt.RequiresLineOfSight = false
-		prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
-		prompt.KeyboardKeyCode = Enum.KeyCode.E
-		prompt.Style = Enum.ProximityPromptStyle.Default
-		prompt.Parent = planter
+	local function tryHookPrompt()
+		local prompt = planter:FindFirstChild("PlantPrompt") :: ProximityPrompt?
+		if not prompt then return false end
+		if prompt:GetAttribute("_Hooked") then return true end
+		prompt:SetAttribute("_Hooked", true)
 
 		local function refreshVis()
 			prompt.Enabled = planter:GetAttribute("IsEmpty") == true
@@ -180,8 +181,18 @@ local function attachPrompt(planter: Instance)
 			if triggerer ~= player then return end
 			showPicker(planter)
 		end)
+		return true
+	end
+
+	if tryHookPrompt() then return end
+	-- Wait for server-side prompt to replicate in
+	task.spawn(function()
+		for _ = 1, 30 do
+			task.wait(0.2)
+			if tryHookPrompt() then return end
+		end
 	end)
 end
 
-for _, p in CollectionService:GetTagged("Planter") do attachPrompt(p) end
-CollectionService:GetInstanceAddedSignal("Planter"):Connect(attachPrompt)
+for _, p in CollectionService:GetTagged("Planter") do hookPlanter(p) end
+CollectionService:GetInstanceAddedSignal("Planter"):Connect(hookPlanter)

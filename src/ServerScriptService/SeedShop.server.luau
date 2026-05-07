@@ -7,6 +7,8 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local ServerScriptService = game:GetService("ServerScriptService")
+local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
 
 local OpenShopRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("OpenShop") :: RemoteEvent
 local BuySeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuySeed") :: RemoteEvent
@@ -151,18 +153,12 @@ PlantInPlotRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
 	planterRef:SetAttribute("PlantedAt", os.time())
 	planterRef:SetAttribute("GrowSeconds", species.growSeconds)
 
-	local existing = planterRef:FindFirstChild("Plant")
-	if existing then existing:Destroy() end
-	local sprout = Instance.new("Part")
-	sprout.Name = "Plant"
-	sprout.Size = Vector3.new(1, 0.5, 1)
-	sprout.Position = planterRef.Position + Vector3.new(0, 1.5, 0)
-	sprout.Anchored = true
-	sprout.CanCollide = false
-	sprout.Material = Enum.Material.Neon
-	sprout.Color = Color3.new(species.color[1], species.color[2], species.color[3])
-	sprout.TopSurface = Enum.SurfaceType.Smooth
-	sprout.Parent = planterRef
+	-- BAB-011: build a real plant model (stem + leaves + bud + bloom).
+	PlantVisuals.create(planterRef, species)
+
+	-- Hide the empty border (planted now)
+	local border = planterRef:FindFirstChild("EmptyBorder") :: BasePart?
+	if border then border.Transparency = 1 end
 end)
 
 Players.PlayerRemoving:Connect(function(player)

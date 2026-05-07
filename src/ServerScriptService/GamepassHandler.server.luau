@@ -30,9 +30,6 @@ local function ownsPass(player: Player, key: string): boolean
 	local id = passId(key)
 	if id <= 0 then return false end
 	local ok, owns = pcall(function()
-		return -- TODO: gamepass check will fail until IDs are real. For now, always return false
-		-- to prevent errors with placeholder IDs.
-		if id == 0 then return false end
 		return MarketplaceService:UserOwnsGamePassAsync(player.UserId, id)
 	end)
 	return ok and owns or false

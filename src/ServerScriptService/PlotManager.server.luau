@@ -106,7 +106,19 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			border.CanTouch = false
 			border.Parent = planter
 
-			-- The border is a child named "EmptyBorder"; PlantHandler finds it via FindFirstChild.
+			-- BAB-011: Server-side ProximityPrompt (replicates reliably to all clients).
+			-- Visible only to the planter's owner via the .Triggered ownership check below.
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "PlantPrompt"
+			prompt.ActionText = "Plant Seed"
+			prompt.ObjectText = "Empty Planter"
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 12
+			prompt.RequiresLineOfSight = false
+			prompt.KeyboardKeyCode = Enum.KeyCode.E
+			prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+			prompt.Enabled = true
+			prompt.Parent = planter
 		end
 	end
 
