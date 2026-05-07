@@ -112,6 +112,16 @@ Keep it **machine-parseable** so we can scan history fast.
 [BAB-NNN] <verb>: <one-line summary>
 ```
 
+### Group chat tagging
+
+The G-Tards group is a broadcast channel. Mentions decide who needs to respond:
+- `@G-Tard Lin` — Lin must read + respond
+- `@G-Tard` — Mac (me) must read + respond
+- No tag — informational broadcast / log only, no response expected
+
+**If you need an action from your peer, you MUST tag them.** Untagged messages are status updates, not requests.
+
+
 Verbs we use:
 - `claim` — taking the ticket
 - `plan` — sharing approach (link to ticket)
