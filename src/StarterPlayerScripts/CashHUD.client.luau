@@ -62,6 +62,77 @@ cashLabel.Font = Enum.Font.FredokaOne
 cashLabel.TextScaled = true
 cashLabel.Parent = cashFrame
 
+-- ── Seed inventory chip (under cash) ──────────────────────────────────
+local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+
+local seedFrame = Instance.new("Frame")
+seedFrame.Name = "SeedInventory"
+seedFrame.Size = UDim2.new(0, 240, 0, 0)  -- height auto via UIListLayout
+seedFrame.AutomaticSize = Enum.AutomaticSize.Y
+seedFrame.AnchorPoint = Vector2.new(1, 0)
+seedFrame.Position = UDim2.new(1, -16, 0, 95)
+seedFrame.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
+seedFrame.BackgroundTransparency = 0.1
+seedFrame.BorderSizePixel = 0
+seedFrame.Visible = false  -- hidden when empty
+seedFrame.Parent = screen
+do
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = seedFrame
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(120, 220, 120); s.Thickness = 2; s.Parent = seedFrame
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 8); padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 10); padding.PaddingRight = UDim.new(0, 10)
+	padding.Parent = seedFrame
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 4)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = seedFrame
+end
+
+local seedTitle = Instance.new("TextLabel")
+seedTitle.Name = "Title"
+seedTitle.Size = UDim2.new(1, 0, 0, 20)
+seedTitle.LayoutOrder = 0
+seedTitle.BackgroundTransparency = 1
+seedTitle.Text = "🌱 SEED BAG"
+seedTitle.TextColor3 = Color3.fromRGB(180, 255, 180)
+seedTitle.Font = Enum.Font.FredokaOne
+seedTitle.TextScaled = true
+seedTitle.TextXAlignment = Enum.TextXAlignment.Left
+seedTitle.Parent = seedFrame
+
+local function refreshSeeds()
+	for _, c in seedFrame:GetChildren() do
+		if c:IsA("TextLabel") and c.Name ~= "Title" then c:Destroy() end
+	end
+	local totalSeeds = 0
+	local i = 0
+	for _, species in PlantData.list() do
+		local count = player:GetAttribute("Stash_" .. species.id) or 0
+		if count > 0 then
+			i += 1
+			totalSeeds += count
+			local lbl = Instance.new("TextLabel")
+			lbl.Name = "Seed_" .. species.id
+			lbl.Size = UDim2.new(1, 0, 0, 22)
+			lbl.LayoutOrder = i
+			lbl.BackgroundTransparency = 1
+			lbl.Text = string.format("%s %s × %d", species.emoji, species.displayName, count)
+			lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+			lbl.Font = Enum.Font.GothamBold
+			lbl.TextScaled = true
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.Parent = seedFrame
+		end
+	end
+	seedFrame.Visible = totalSeeds > 0
+end
+
+refreshSeeds()
+player.AttributeChanged:Connect(function(name)
+	if name:sub(1, 6) == "Stash_" then refreshSeeds() end
+end)
+
 -- ── Top-center objective banner ──────────────────────────────────────
 local hintFrame = Instance.new("Frame")
 hintFrame.Size = UDim2.new(0.55, 0, 0, 60)
