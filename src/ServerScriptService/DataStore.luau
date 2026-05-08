@@ -12,6 +12,7 @@ local store = DataStoreService:GetDataStore(DATA_STORE_NAME)
 
 local DEFAULT_DATA = {
 	cash = 100,                       -- starter cash so player can buy first seed
+	cogParts = 0,                     -- BAB-STEAMPUNK: secondary currency from SCRAP, used for upgrades
 	rebirths = 0,
 	multiplier = 1,
 	plotClaimed = false,
@@ -22,12 +23,22 @@ local DEFAULT_DATA = {
 	lastSeen = 0,                     -- os.time() of last save (for offline income)
 	lifetimeCash = 0,                 -- progressive shop unlock budget
 	starterPackGranted = false,       -- one-shot free-seed starter (BAB-002)
-	-- BAB-002: per-planter grow state + harvested-but-unsold inventory.
-	-- planters key = planter slot index 1..9 (3x3 grid order). Indexes are
-	-- intentionally string keys because DataStore JSON arrays drop nil holes.
+	-- BAB-STEAMPUNK: class identity. nil → first-run forces ClassPickerUI.
+	-- One of: "knight", "alchemist", "skyPirate", "tinkerer", "hexer".
+	class = nil,
+	-- BAB-STEAMPUNK: stable of nurtured critters. Each entry is the persistent
+	-- record of a critter the player chose to NURTURE at harvest time.
+	-- { id = "uuid", species = "mech_hound", mutation = "", name = "Cogsworth",
+	--   hp = 100, slots = {armor=nil, power=nil, speed=nil, special=nil},
+	--   bondedAt = os.time(), feralAt = nil }
+	stable = {},
+	stableCapacity = 6,               -- expandable via gamepass / cog parts
+	-- BAB-002: per-incubator-pod grow state + hatched-but-undecided inventory.
+	-- planters key = pod slot index 1..9 (3x3 grid order). String keys because
+	-- DataStore JSON arrays drop nil holes.
 	plot = {
-		planters = {},                -- { ["5"] = { species = "sunbloom", plantedAt = 1000, growSeconds = 60 } }
-		stash = {},                   -- { ["sunbloom:"] = 3, ["voidlotus:rainbow"] = 1 }
+		planters = {},                -- { ["5"] = { species = "mech_hound", plantedAt = 1000, growSeconds = 30 } }
+		stash = {},                   -- { ["mech_hound:"] = 3, ["coal_drake:ember"] = 1 }
 	},
 }
 
@@ -58,6 +69,7 @@ local function freshDefaults(): { [string]: any }
 	-- aliasing the module-level DEFAULT_DATA tables.
 	local d = table.clone(DEFAULT_DATA)
 	d.plot = { planters = {}, stash = {} }
+	d.stable = {}
 	return d
 end
 

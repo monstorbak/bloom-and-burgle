@@ -1,21 +1,22 @@
 --!strict
--- PlantVisuals (BAB-011): Build proper-looking plant models instead of yellow boxes.
+-- PlantVisuals (BAB-STEAMPUNK §1.5 + §3.5): builds cute critter models inside
+-- incubator pods. Module name preserved for compat with PlantHandler callers;
+-- the visuals are now critters, not plants.
 --
--- A plant model is a Model with parts:
---   StemBase        -- thin cylinder from soil
---   Stem            -- main stalk (scales with progress)
---   LeafL, LeafR    -- two angled leaves halfway up (appear at progress >= 0.4)
---   Bud             -- flower bud at top (visible at progress >= 0.6)
---   Bloom           -- full bloom mesh + glow (visible at progress >= 0.85, ripe)
---   RipeIndicator   -- floating BillboardGui ✨ above plant when ripe (progress = 1)
+-- A "Plant" model (legacy name kept) contains:
+--   Egg / EggRibbon — translucent shell visible during incubation (0–0.5)
+--   Body / Head     — main critter geometry (fades in 0.5–0.75, scales)
+--   Goggle/GoggleRim — single brass-rimmed cyan goggle eye (the steampunk read)
+--   LegN            — limbs per archetype profile
+--   WingN           — only for winged archetypes
+--   Tail            — only for quad/winged
+--   SegmentN        — extra body chunks for multi (serpent/hydra)
+--   Indicator       — floating species emoji + ✨ above critter when ripe
 --
--- All parts are anchored, CanCollide false, and parented to the planter so
--- destruction on harvest cleans up automatically.
---
--- Public:
+-- Public API (signatures unchanged so PlantHandler stays as-is):
 --   PlantVisuals.create(planter, species)         -> Model
---   PlantVisuals.update(plantModel, progress)     -- called per-frame from grow loop
---   PlantVisuals.markRipe(plantModel, isRipe)     -- toggles ripe glow + indicator
+--   PlantVisuals.update(plantModel, progress)
+--   PlantVisuals.markRipe(plantModel, isRipe)
 
 local PlantVisuals = {}
 
@@ -34,8 +35,24 @@ local function makePart(name: string, parent: Instance): Part
 	return p
 end
 
--- Build the plant Model. `planter` is the BasePart this plant grows out of.
--- `species` is a PlantData PlantSpec (color, rarity).
+-- The pod cylinder is rotated; the critter sits on top of the cylinder casing.
+-- Pod height = 4.2 along Y after rotation, centered at planter.Y. Top ≈ +2.6.
+local function critterOrigin(planter: BasePart): Vector3
+	return planter.Position + Vector3.new(0, 2.6, 0)
+end
+
+local function archetypeProfile(archetype: string)
+	if archetype == "quad" then
+		return { bodyLen = 1.6, bodyHeight = 1.0, legCount = 4, hasTail = true,  hasWings = false }
+	elseif archetype == "winged" then
+		return { bodyLen = 1.2, bodyHeight = 0.9, legCount = 2, hasTail = true,  hasWings = true  }
+	elseif archetype == "multi" then
+		return { bodyLen = 0.9, bodyHeight = 0.8, legCount = 0, hasTail = false, hasWings = false, segments = 3 }
+	else  -- bug
+		return { bodyLen = 1.0, bodyHeight = 0.7, legCount = 6, hasTail = false, hasWings = false }
+	end
+end
+
 function PlantVisuals.create(planter: BasePart, species: any): Model
 	local existing = planter:FindFirstChild("Plant")
 	if existing then existing:Destroy() end
@@ -45,82 +62,130 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	model.Parent = planter
 
 	local color = Color3.new(species.color[1], species.color[2], species.color[3])
-	local stemColor = Color3.fromRGB(60, 130, 50)
-	local leafColor = Color3.fromRGB(80, 170, 60)
-	local origin = planter.Position + Vector3.new(0, planter.Size.Y / 2, 0)
+	local archetype = (species.archetype or "bug")
+	local profile = archetypeProfile(archetype)
 
-	-- StemBase: small mound at soil level, always visible after planting
-	local base = makePart("StemBase", model)
-	base.Shape = Enum.PartType.Ball
-	base.Size = Vector3.new(1.4, 1.4, 1.4)
-	base.Material = Enum.Material.Grass
-	base.Color = Color3.fromRGB(80, 60, 40)
-	base.Position = origin + Vector3.new(0, 0.2, 0)
+	local origin = critterOrigin(planter)
+	model:SetAttribute("OriginY", origin.Y)
+	model:SetAttribute("Archetype", archetype)
+	model:SetAttribute("Ripe", false)
 
-	-- Stem: cylinder that grows in height
-	local stem = makePart("Stem", model)
-	stem.Shape = Enum.PartType.Cylinder
-	stem.Material = Enum.Material.Grass
-	stem.Color = stemColor
-	stem.Size = Vector3.new(0.6, 0.4, 0.4)  -- length on X axis (will be rotated up)
-	stem.CFrame = CFrame.new(origin + Vector3.new(0, 0.4, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	-- ── Egg (visible 0.0–0.5, fades 0.4–0.6) ──
+	local egg = makePart("Egg", model)
+	egg.Shape = Enum.PartType.Ball
+	egg.Material = Enum.Material.Marble
+	egg.Color = color:Lerp(Color3.fromRGB(255, 240, 220), 0.6)
+	egg.Size = Vector3.new(2.0, 2.4, 2.0)
+	egg.Position = origin
 
-	-- Two leaves
-	local leafL = makePart("LeafL", model)
-	leafL.Shape = Enum.PartType.Block
-	leafL.Material = Enum.Material.Grass
-	leafL.Color = leafColor
-	leafL.Size = Vector3.new(1.4, 0.3, 0.6)
-	leafL.CFrame = CFrame.new(origin + Vector3.new(-0.6, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(20))
-	leafL.Transparency = 1
+	local ribbon = makePart("EggRibbon", model)
+	ribbon.Shape = Enum.PartType.Cylinder
+	ribbon.Material = Enum.Material.Metal
+	ribbon.Color = Color3.fromRGB(200, 146, 63)  -- Brass
+	ribbon.Size = Vector3.new(0.2, 2.2, 2.2)
+	ribbon.CFrame = CFrame.new(origin) * CFrame.Angles(0, 0, math.rad(90))
 
-	local leafR = makePart("LeafR", model)
-	leafR.Shape = Enum.PartType.Block
-	leafR.Material = Enum.Material.Grass
-	leafR.Color = leafColor
-	leafR.Size = Vector3.new(1.4, 0.3, 0.6)
-	leafR.CFrame = CFrame.new(origin + Vector3.new(0.6, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(-20))
-	leafR.Transparency = 1
+	-- ── Body (hidden until 0.5, scales 0.6→1.0) ──
+	local body = makePart("Body", model)
+	body.Shape = Enum.PartType.Ball
+	body.Material = Enum.Material.SmoothPlastic
+	body.Color = color
+	body.Size = Vector3.new(profile.bodyLen, profile.bodyHeight, profile.bodyLen)
+	body.Position = origin
+	body.Transparency = 1
 
-	-- Bud: small ball at top, color of species
-	local bud = makePart("Bud", model)
-	bud.Shape = Enum.PartType.Ball
-	bud.Material = Enum.Material.SmoothPlastic
-	bud.Color = color:Lerp(Color3.fromRGB(40, 80, 40), 0.4) -- darker, unripe
-	bud.Size = Vector3.new(1.0, 1.0, 1.0)
-	bud.Position = origin + Vector3.new(0, 1.5, 0)
-	bud.Transparency = 1
+	-- ── Head + goggle eye ──
+	local head = makePart("Head", model)
+	head.Shape = Enum.PartType.Ball
+	head.Material = Enum.Material.SmoothPlastic
+	head.Color = color
+	head.Size = Vector3.new(0.9, 0.9, 0.9)
+	head.Position = origin + Vector3.new(0, 0.4, profile.bodyLen * 0.5)
+	head.Transparency = 1
 
-	-- Bloom: full neon flower at top when ripe
-	local bloom = makePart("Bloom", model)
-	bloom.Shape = Enum.PartType.Ball
-	bloom.Material = Enum.Material.Neon
-	bloom.Color = color
-	bloom.Size = Vector3.new(2.4, 2.4, 2.4)
-	bloom.Position = origin + Vector3.new(0, 1.5, 0)
-	bloom.Transparency = 1
+	local goggle = makePart("Goggle", model)
+	goggle.Shape = Enum.PartType.Cylinder
+	goggle.Material = Enum.Material.Neon
+	goggle.Color = Color3.fromRGB(79, 227, 255)  -- AetherCyan
+	goggle.Size = Vector3.new(0.1, 0.45, 0.45)
+	goggle.CFrame = CFrame.new(head.Position + Vector3.new(0, 0.05, 0.45)) * CFrame.Angles(0, 0, math.rad(90))
+	goggle.Transparency = 1
 
-	-- Glow attachment for ripe indicator
-	local glowAttach = Instance.new("Attachment")
-	glowAttach.Name = "GlowAttach"
-	glowAttach.Position = Vector3.new(0, 0, 0)
-	glowAttach.Parent = bloom
+	local goggleRim = makePart("GoggleRim", model)
+	goggleRim.Shape = Enum.PartType.Cylinder
+	goggleRim.Material = Enum.Material.Metal
+	goggleRim.Color = Color3.fromRGB(200, 146, 63)
+	goggleRim.Size = Vector3.new(0.05, 0.55, 0.55)
+	goggleRim.CFrame = CFrame.new(head.Position + Vector3.new(0, 0.05, 0.48)) * CFrame.Angles(0, 0, math.rad(90))
+	goggleRim.Transparency = 1
 
-	local pl = Instance.new("PointLight")
-	pl.Name = "RipeGlow"
-	pl.Color = color
-	pl.Range = 12
-	pl.Brightness = 0
-	pl.Parent = bloom
+	-- ── Limbs ──
+	local legColor = Color3.fromRGB(46, 42, 42)  -- IronworkCharcoal
+	for i = 1, profile.legCount do
+		local leg = makePart("Leg" .. tostring(i), model)
+		leg.Shape = Enum.PartType.Cylinder
+		leg.Material = Enum.Material.Metal
+		leg.Color = legColor
+		leg.Size = Vector3.new(0.6, 0.18, 0.18)
+		local angle = (i - 1) * (math.pi * 2 / profile.legCount)
+		local lx = math.cos(angle) * (profile.bodyLen * 0.35)
+		local lz = math.sin(angle) * (profile.bodyLen * 0.35)
+		leg.CFrame = CFrame.new(origin + Vector3.new(lx, -0.5, lz))
+		leg.Transparency = 1
+	end
 
-	-- Floating ✨ indicator (hidden until ripe)
+	-- ── Wings (winged only) ──
+	if profile.hasWings then
+		for _, side in { -1, 1 } do
+			local wing = makePart("Wing" .. tostring(side + 2), model)  -- 1 or 3
+			wing.Shape = Enum.PartType.Block
+			wing.Material = Enum.Material.SmoothPlastic
+			wing.Color = color:Lerp(Color3.fromRGB(255, 255, 255), 0.3)
+			wing.Size = Vector3.new(1.4, 0.08, 0.7)
+			wing.CFrame = CFrame.new(origin + Vector3.new(side * 0.8, 0.4, 0)) * CFrame.Angles(0, 0, math.rad(side * -25))
+			wing.Transparency = 1
+		end
+	end
+
+	-- ── Tail (quad/winged only) ──
+	if profile.hasTail then
+		local tail = makePart("Tail", model)
+		tail.Shape = Enum.PartType.Cylinder
+		tail.Material = Enum.Material.SmoothPlastic
+		tail.Color = color:Lerp(Color3.fromRGB(0, 0, 0), 0.2)
+		tail.Size = Vector3.new(0.9, 0.3, 0.3)
+		tail.CFrame = CFrame.new(origin + Vector3.new(0, 0.0, -profile.bodyLen * 0.6)) * CFrame.Angles(0, 0, math.rad(90))
+		tail.Transparency = 1
+	end
+
+	-- ── Multi-segment serpent (multi only) ──
+	if archetype == "multi" then
+		for i = 1, (profile.segments or 3) - 1 do
+			local seg = makePart("Segment" .. tostring(i), model)
+			seg.Shape = Enum.PartType.Ball
+			seg.Material = Enum.Material.SmoothPlastic
+			seg.Color = color
+			seg.Size = Vector3.new(0.8, 0.8, 0.8)
+			seg.Position = origin + Vector3.new(0, 0, -i * 0.7)
+			seg.Transparency = 1
+		end
+	end
+
+	-- ── Ripe indicator ──
+	local light = Instance.new("PointLight")
+	light.Name = "RipeGlow"
+	light.Color = color
+	light.Range = 10
+	light.Brightness = 0
+	light.Parent = body
+
 	local indicator = Instance.new("BillboardGui")
 	indicator.Name = "RipeIndicator"
 	indicator.Size = UDim2.fromOffset(80, 80)
-	indicator.StudsOffset = Vector3.new(0, 4, 0)
+	indicator.StudsOffset = Vector3.new(0, 3, 0)
 	indicator.AlwaysOnTop = true
 	indicator.Enabled = false
-	indicator.Parent = bloom
+	indicator.Parent = body
 	local ind = Instance.new("TextLabel")
 	ind.Size = UDim2.fromScale(1, 1)
 	ind.BackgroundTransparency = 1
@@ -129,61 +194,36 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	ind.Font = Enum.Font.FredokaOne
 	ind.Parent = indicator
 
-	-- Subtle bobbing motion for ripe plants
-	model:SetAttribute("OriginY", origin.Y)
-	model:SetAttribute("Ripe", false)
-
 	return model
 end
 
--- Update growth visuals. progress in [0,1].
 function PlantVisuals.update(plantModel: Model, progress: number)
-	local stem = plantModel:FindFirstChild("Stem") :: BasePart?
-	if not stem then return end
-	local leafL = plantModel:FindFirstChild("LeafL") :: BasePart?
-	local leafR = plantModel:FindFirstChild("LeafR") :: BasePart?
-	local bud = plantModel:FindFirstChild("Bud") :: BasePart?
-	local bloom = plantModel:FindFirstChild("Bloom") :: BasePart?
-	if not (leafL and leafR and bud and bloom) then return end
+	local egg = plantModel:FindFirstChild("Egg") :: BasePart?
+	local body = plantModel:FindFirstChild("Body") :: BasePart?
+	if not (egg and body) then return end
 
-	local originY = plantModel:GetAttribute("OriginY") or 0
-	local pivot = stem.Position
-	-- Stem: grows from height 0.4 to 4.5
-	local stemHeight = 0.4 + progress * 4.1
-	stem.Size = Vector3.new(stemHeight, 0.5, 0.5)
-	-- Re-anchor stem so its base stays at originY+0.4
-	stem.CFrame = CFrame.new(Vector3.new(pivot.X, originY + 0.4 + stemHeight / 2, pivot.Z)) * CFrame.Angles(0, 0, math.rad(90))
+	-- Egg fades 0.4 → 0.6
+	local eggFade = math.clamp((progress - 0.4) / 0.2, 0, 1)
+	egg.Transparency = eggFade
+	local ribbon = plantModel:FindFirstChild("EggRibbon") :: BasePart?
+	if ribbon then ribbon.Transparency = eggFade end
 
-	-- Leaves: appear at progress >= 0.4, fade in 0.4 -> 0.55, sit halfway up stem
-	local leafFade = math.clamp((progress - 0.4) / 0.15, 0, 1)
-	leafL.Transparency = 1 - leafFade
-	leafR.Transparency = 1 - leafFade
-	local leafY = originY + 0.4 + stemHeight * 0.5
-	leafL.CFrame = CFrame.new(Vector3.new(pivot.X - 0.7, leafY, pivot.Z)) * CFrame.Angles(0, 0, math.rad(20))
-	leafR.CFrame = CFrame.new(Vector3.new(pivot.X + 0.7, leafY, pivot.Z)) * CFrame.Angles(0, 0, math.rad(-20))
-
-	-- Bud: appears at progress >= 0.6, fade in 0.6 -> 0.8, swells over time
-	local budFade = math.clamp((progress - 0.6) / 0.2, 0, 1)
-	bud.Transparency = 1 - budFade
-	local budSize = 0.6 + budFade * 0.8
-	bud.Size = Vector3.new(budSize, budSize, budSize)
-	local topY = originY + 0.4 + stemHeight + 0.3
-	bud.Position = Vector3.new(pivot.X, topY, pivot.Z)
-
-	-- Bloom: appears at progress >= 0.85, fade in 0.85 -> 1.0
-	local bloomFade = math.clamp((progress - 0.85) / 0.15, 0, 1)
-	bloom.Transparency = 1 - bloomFade
-	local bloomSize = 0.5 + bloomFade * 1.9
-	bloom.Size = Vector3.new(bloomSize, bloomSize, bloomSize)
-	bloom.Position = Vector3.new(pivot.X, topY + 0.2, pivot.Z)
-
-	-- Bud color lerps toward bloom color as it ripens (greenish -> species color)
-	if budFade > 0 and bud:IsA("BasePart") then
-		local fullColor = bloom.Color
-		bud.Color = fullColor:Lerp(Color3.fromRGB(40, 80, 40), 1 - budFade)
+	-- Body parts fade in 0.5 → 0.75
+	local bodyFade = math.clamp((progress - 0.5) / 0.25, 0, 1)
+	for _, name in { "Body", "Head", "Goggle", "GoggleRim", "Tail" } do
+		local p = plantModel:FindFirstChild(name) :: BasePart?
+		if p then p.Transparency = 1 - bodyFade end
+	end
+	for _, p in plantModel:GetChildren() do
+		if p:IsA("BasePart") and (
+			p.Name:sub(1, 3) == "Leg" or
+			p.Name:sub(1, 4) == "Wing" or
+			p.Name:sub(1, 7) == "Segment"
+		) then
+			p.Transparency = 1 - bodyFade
+		end
 	end
 
-	-- Once fully ripe, switch on glow + indicator (idempotent)
 	if progress >= 1 and not plantModel:GetAttribute("Ripe") then
 		PlantVisuals.markRipe(plantModel, true)
 	elseif progress < 1 and plantModel:GetAttribute("Ripe") then
@@ -193,23 +233,22 @@ end
 
 function PlantVisuals.markRipe(plantModel: Model, isRipe: boolean)
 	plantModel:SetAttribute("Ripe", isRipe)
-	local bloom = plantModel:FindFirstChild("Bloom") :: BasePart?
-	if not bloom then return end
-	local glow = bloom:FindFirstChild("RipeGlow") :: PointLight?
-	local ind = bloom:FindFirstChild("RipeIndicator") :: BillboardGui?
+	local body = plantModel:FindFirstChild("Body") :: BasePart?
+	if not body then return end
+	local glow = body:FindFirstChild("RipeGlow") :: PointLight?
+	local ind = body:FindFirstChild("RipeIndicator") :: BillboardGui?
 	if isRipe then
 		if glow then glow.Brightness = 2 end
 		if ind then ind.Enabled = true end
-		-- Pulse the bloom slightly
 		task.spawn(function()
 			while plantModel.Parent and plantModel:GetAttribute("Ripe") do
-				if not bloom or not bloom.Parent then return end
-				local t = TweenService:Create(bloom, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
-					Size = bloom.Size * 1.08,
+				if not body or not body.Parent then return end
+				local t = TweenService:Create(body, TweenInfo.new(1.0, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+					Size = body.Size * 1.06,
 				})
 				t:Play()
 				task.wait(0.1)
-				return -- the reverse:true in TweenInfo handles the loop
+				return
 			end
 		end)
 	else

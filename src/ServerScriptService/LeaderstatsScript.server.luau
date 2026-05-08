@@ -43,6 +43,13 @@ local function buildLeaderstats(player: Player, data: { [string]: any })
 	player:SetAttribute("MutationsFound", data.mutationsFound or 0)
 	player:SetAttribute("LifetimeCash", data.lifetimeCash or 0)
 	player:SetAttribute("StarterPackGranted", data.starterPackGranted or false)
+	-- BAB-STEAMPUNK: class identity + secondary currency + stable capacity.
+	-- Class is nil until ClassPickerUI fires PickClass; HUD uses the attribute
+	-- to render the persistent badge in the top-left corner.
+	player:SetAttribute("Class", data.class)
+	player:SetAttribute("CogParts", data.cogParts or 0)
+	player:SetAttribute("StableCapacity", data.stableCapacity or 6)
+	player:SetAttribute("StableSize", data.stable and #data.stable or 0)
 end
 
 local function snapshot(player: Player): { [string]: any }?
@@ -61,6 +68,13 @@ local function snapshot(player: Player): { [string]: any }?
 		if ok then plot = result end
 	end
 
+	-- Pull stable from PlantHandler (or its replacement) when available.
+	local stable = nil
+	if _G.PlantHandler and _G.PlantHandler.snapshotStable then
+		local ok, result = pcall(_G.PlantHandler.snapshotStable, player)
+		if ok then stable = result end
+	end
+
 	return {
 		cash = (cash :: IntValue).Value,
 		rebirths = (rebirths :: IntValue).Value,
@@ -71,6 +85,11 @@ local function snapshot(player: Player): { [string]: any }?
 		mutationsFound = player:GetAttribute("MutationsFound") or 0,
 		lifetimeCash = player:GetAttribute("LifetimeCash") or 0,
 		starterPackGranted = player:GetAttribute("StarterPackGranted") or false,
+		-- BAB-STEAMPUNK
+		class = player:GetAttribute("Class"),
+		cogParts = player:GetAttribute("CogParts") or 0,
+		stableCapacity = player:GetAttribute("StableCapacity") or 6,
+		stable = stable,
 		plot = plot,
 	}
 end

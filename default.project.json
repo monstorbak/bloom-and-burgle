@@ -66,7 +66,8 @@
         "ClockTime": 14,
         "FogEnd": 1500,
         "GlobalShadows": true,
-        "OutdoorAmbient": [0.5, 0.5, 0.5]
+        "OutdoorAmbient": [0.5, 0.5, 0.5],
+        "Technology": "Future"
       }
     },
 

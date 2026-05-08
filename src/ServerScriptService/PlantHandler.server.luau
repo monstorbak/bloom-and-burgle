@@ -19,6 +19,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
 
 local SellPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellPlants") :: RemoteEvent
+local ScrapPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ScrapPlants") :: RemoteEvent
 local PlantSeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PlantSeed") :: RemoteEvent
 
 local MAX_OFFLINE_SECONDS = 24 * 60 * 60  -- BAB-002: cap offline grow at 24h
@@ -102,13 +103,19 @@ RunService.Heartbeat:Connect(function()
 			end
 		end
 		
-		-- BAB-011: Update planter border visibility (hide when planted)
+		-- BAB-STEAMPUNK: pod aether window glows brighter as growth progresses,
+		-- and pulses when ripe. Empty pods are dim. The "EmptyBorder" name is
+		-- preserved from the legacy planter; in steampunk reskin it's the cyan
+		-- glow window in the pod door.
 		local border = planter:FindFirstChild("EmptyBorder") :: BasePart?
 		if border then
 			if planter:GetAttribute("IsEmpty") then
-				border.Transparency = 0  -- visible
+				border.Transparency = 0.85           -- nearly hidden when dormant
+			elseif planter:GetAttribute("Ripe") then
+				-- Pulse: 0.05 ↔ 0.35 driven by os.clock so it animates smoothly
+				border.Transparency = 0.2 + 0.15 * math.sin(os.clock() * 4)
 			else
-				border.Transparency = 1  -- hidden
+				border.Transparency = 0.4 - 0.3 * progress  -- ramps from 0.4 → 0.1 as it grows
 			end
 		end
 	end
@@ -176,6 +183,61 @@ end
 
 for _, sellPad in CollectionService:GetTagged("SellPad") do wireSellPad(sellPad) end
 CollectionService:GetInstanceAddedSignal("SellPad"):Connect(wireSellPad)
+
+-- ── ScrapPad wiring (BAB-STEAMPUNK §9) ─────────────────────────────
+-- Walk-on pad that converts inventory into Cog Parts (secondary currency
+-- used for upgrades). Sacred-tagged species are skipped (cannot be scrapped).
+-- Uses the same per-player debounce as the sell pad.
+local scrapCooldown: { [number]: number } = {}
+
+local function wireScrapPad(scrapPad: Instance)
+	if not scrapPad:IsA("BasePart") then return end
+	if scrapPad:GetAttribute("WiredScrap") then return end
+	scrapPad:SetAttribute("WiredScrap", true)
+	scrapPad.Touched:Connect(function(hit)
+		local character = hit:FindFirstAncestorOfClass("Model")
+		if not character then return end
+		local player = Players:GetPlayerFromCharacter(character)
+		if not player then return end
+		if scrapPad:GetAttribute("OwnerUserId") ~= player.UserId then return end
+
+		local now = os.clock()
+		if scrapCooldown[player.UserId] and now - scrapCooldown[player.UserId] < 0.5 then return end
+		scrapCooldown[player.UserId] = now
+
+		local inv = getInv(player)
+		local totalCp = 0
+		local skipped = 0
+		for key, count in inv do
+			if count <= 0 then continue end
+			local sep = string.find(key, ":") or 0
+			local sId = string.sub(key, 1, sep - 1)
+			local spec = PlantData.get(sId)
+			if not spec then continue end
+			-- Sacred species can't be scrapped — skip and leave in inventory.
+			if spec.tag == "Sacred" then
+				skipped += count
+				continue
+			end
+			local subtotal = count * spec.scrapValue
+			totalCp += subtotal
+			inv[key] = 0
+		end
+		if totalCp <= 0 then
+			-- Still notify client so they get a "Sacred — can't scrap" toast
+			-- (client-side sees scrapped=0, skipped>0 → shows the right copy).
+			ScrapPlantsRE:FireClient(player, 0, skipped)
+			return
+		end
+
+		local newCp = (player:GetAttribute("CogParts") or 0) + totalCp
+		player:SetAttribute("CogParts", newCp)
+		ScrapPlantsRE:FireClient(player, totalCp, skipped)
+	end)
+end
+
+for _, scrapPad in CollectionService:GetTagged("ScrapPad") do wireScrapPad(scrapPad) end
+CollectionService:GetInstanceAddedSignal("ScrapPad"):Connect(wireScrapPad)
 
 -- BAB-011: Harvest a single ripe planter for the player. Adds to stash.
 -- Returns true if something was actually harvested.

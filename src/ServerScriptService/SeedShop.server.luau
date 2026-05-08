@@ -25,61 +25,118 @@ local function getStash(player: Player): { [string]: number }
 	return seedStash[player.UserId]
 end
 
--- Build a kiosk part near spawn
+-- Build the Egg Emporium kiosk near spawn (steampunk reskin per spec §2.5).
+-- Multi-part build: brass dome on a stout post, glowing aether window inside,
+-- floating signage. The "SeedShopKiosk" tag + OpenShopRE wiring stay so the
+-- existing SHOP button still works.
 local function buildKiosk(): BasePart
+	local BrandColors = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("BrandColors"))
+
+	local model = Instance.new("Model")
+	model.Name = "EggEmporium"
+	model.Parent = Workspace
+
+	local center = Vector3.new(0, 0, -15)
+
+	-- Stout charcoal post / counter
+	local post = Instance.new("Part")
+	post.Name = "Counter"
+	post.Size = Vector3.new(8, 4, 5)
+	post.Position = center + Vector3.new(0, 2, 0)
+	post.Anchored = true
+	post.Material = Enum.Material.Metal
+	post.Color = BrandColors.IronworkCharcoal
+	post.Parent = model
+
+	-- Brass border on top of counter (visual rim)
+	local rim = Instance.new("Part")
+	rim.Name = "CounterRim"
+	rim.Size = Vector3.new(8.4, 0.4, 5.4)
+	rim.Position = center + Vector3.new(0, 4.2, 0)
+	rim.Anchored = true
+	rim.Material = Enum.Material.Metal
+	rim.Color = BrandColors.Brass
+	rim.CanCollide = false
+	rim.Parent = model
+
+	-- Brass dome (sphere on top — the iconic steampunk read)
+	local dome = Instance.new("Part")
+	dome.Name = "Dome"
+	dome.Shape = Enum.PartType.Ball
+	dome.Size = Vector3.new(6, 6, 6)
+	dome.Position = center + Vector3.new(0, 7, 0)
+	dome.Anchored = true
+	dome.Material = Enum.Material.Metal
+	dome.Color = BrandColors.Brass
+	dome.CanCollide = false
+	dome.Parent = model
+
+	-- Glowing cyan window inside the dome (aether window — looks magical)
+	local window = Instance.new("Part")
+	window.Name = "AetherWindow"
+	window.Shape = Enum.PartType.Ball
+	window.Size = Vector3.new(4.6, 4.6, 4.6)
+	window.Position = center + Vector3.new(0, 7, 0)
+	window.Anchored = true
+	window.Material = Enum.Material.Neon
+	window.Color = BrandColors.AetherCyan
+	window.Transparency = 0.5
+	window.CanCollide = false
+	window.CanTouch = false
+	window.Parent = model
+
+	-- Touch zone — invisible larger box at base so walking up triggers
 	local kiosk = Instance.new("Part")
 	kiosk.Name = "SeedShopKiosk"
-	kiosk.Size = Vector3.new(8, 10, 8)
-	kiosk.Position = Vector3.new(0, 5, -15)  -- near spawn, in front of fountain
+	kiosk.Size = Vector3.new(10, 10, 8)
+	kiosk.Position = center + Vector3.new(0, 5, 0)
 	kiosk.Anchored = true
 	kiosk.CanCollide = false
-	kiosk.Material = Enum.Material.Neon
-	kiosk.Color = Color3.fromRGB(120, 220, 100)
-	kiosk.Transparency = 0.15
-	kiosk.Parent = Workspace
+	kiosk.Transparency = 1
+	kiosk.Parent = model
 	kiosk:AddTag("SeedShopKiosk")
 
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(280, 120)
-	gui.StudsOffset = Vector3.new(0, 7, 0)
-	gui.AlwaysOnTop = true
-	gui.Parent = kiosk
+	-- Floating brass signage above the dome
+	local sign = Instance.new("Part")
+	sign.Name = "Sign"
+	sign.Size = Vector3.new(8, 2.2, 0.3)
+	sign.Position = center + Vector3.new(0, 11.5, 0)
+	sign.Anchored = true
+	sign.Material = Enum.Material.Metal
+	sign.Color = BrandColors.Brass
+	sign.CanCollide = false
+	sign.Parent = model
 
-	local frame = Instance.new("Frame")
-	frame.Size = UDim2.fromScale(1, 1)
-	frame.BackgroundColor3 = Color3.fromRGB(20, 60, 30)
-	frame.BackgroundTransparency = 0.2
-	frame.BorderSizePixel = 0
-	frame.Parent = gui
-	local fc = Instance.new("UICorner")
-	fc.CornerRadius = UDim.new(0, 14)
-	fc.Parent = frame
-	local fs = Instance.new("UIStroke")
-	fs.Color = Color3.fromRGB(180, 255, 140)
-	fs.Thickness = 3
-	fs.Parent = frame
+	local signGui = Instance.new("SurfaceGui")
+	signGui.Face = Enum.NormalId.Front
+	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	signGui.PixelsPerStud = 50
+	signGui.Parent = sign
+	local signText = Instance.new("TextLabel")
+	signText.Size = UDim2.fromScale(1, 1)
+	signText.BackgroundTransparency = 1
+	signText.Text = "EGG EMPORIUM"
+	signText.TextColor3 = BrandColors.OilBlack
+	signText.TextScaled = true
+	signText.Font = Enum.Font.Antique
+	signText.Parent = signGui
 
-	local title = Instance.new("TextLabel")
-	title.Size = UDim2.new(1, -10, 0.55, 0)
-	title.Position = UDim2.fromOffset(5, 5)
-	title.BackgroundTransparency = 1
-	title.Text = "🌱 SEED SHOP 🌱"
-	title.TextColor3 = Color3.fromRGB(220, 255, 200)
-	title.TextStrokeTransparency = 0
-	title.Font = Enum.Font.FredokaOne
-	title.TextScaled = true
-	title.Parent = frame
-
-	local sub = Instance.new("TextLabel")
-	sub.Size = UDim2.new(1, -10, 0.45, -10)
-	sub.Position = UDim2.new(0, 5, 0.55, 0)
-	sub.BackgroundTransparency = 1
-	sub.Text = "Walk into me to shop!"
-	sub.TextColor3 = Color3.fromRGB(200, 230, 200)
-	sub.TextStrokeTransparency = 0.4
-	sub.Font = Enum.Font.GothamBold
-	sub.TextScaled = true
-	sub.Parent = frame
+	-- Floating "Walk in" hint above sign
+	local hintGui = Instance.new("BillboardGui")
+	hintGui.Size = UDim2.fromOffset(280, 60)
+	hintGui.StudsOffset = Vector3.new(0, 3, 0)
+	hintGui.AlwaysOnTop = true
+	hintGui.Parent = sign
+	local hint = Instance.new("TextLabel")
+	hint.Size = UDim2.fromScale(1, 1)
+	hint.BackgroundTransparency = 1
+	hint.Text = "🥚 Walk in to buy eggs"
+	hint.TextColor3 = BrandColors.SteamCream
+	hint.TextStrokeTransparency = 0
+	hint.TextStrokeColor3 = BrandColors.OilBlack
+	hint.TextScaled = true
+	hint.Font = Enum.Font.FredokaOne
+	hint.Parent = hintGui
 
 	-- Touch opens the shop
 	local cooldowns: { [number]: number } = {}
