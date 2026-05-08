@@ -30,11 +30,14 @@ transcript in-context.
 
 | File | What it does |
 |---|---|
+| `sync` | **CWD-independent dispatcher.** Resolves its own location via `$BASH_SOURCE` so it works from any directory (repo root, subdir, hook context, or after `cd src/...`). Default: `append-quiet` (the Stop hook target). Subcommands: `append`, `export`, `query "..."`. |
 | `export_history.py` | Full converter. Reads the latest session JSONL from `~/.claude/projects/<encoded-cwd>/`, renders to `Bloom&Burgle_ChatHistory.md` at the repo root. Strips base64 image blobs to placeholders. Idempotent. |
 | `append_history.py` | Incremental updater. Tracks `.last_uuid`; appends only new messages. Falls back to a full export if the session changed. Designed for the Stop hook. |
 | `query_history.py` | RLM-powered Q&A. Loads the JSONL into a Python REPL variable named `history`, then asks an RLM to slice/grep it. |
 | `.last_uuid` | Pointer file (auto-managed). Tracks the last UUID exported so the appender knows where to resume. |
 | `.rlm_logs/` | RLM trajectory logs (auto-created on first query). |
+
+**All scripts work from any CWD** — they locate themselves via `__file__` (Python) or `$BASH_SOURCE` (shell). The Stop hook uses `git rev-parse --show-toplevel` to find the repo root, so it's safe to invoke from `cd src/...` or any subdirectory.
 
 ## How the auto-append works
 
@@ -47,7 +50,7 @@ assistant turn:
     "hooks": [
       {
         "type": "command",
-        "command": "python3 scripts/history/append_history.py --quiet ...",
+        "command": "r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -x \"$r/scripts/history/sync\" ]; then \"$r/scripts/history/sync\" 2>&1 | sed 's/^/[bab-history] /' || true; fi",
         "timeout": 10
       }
     ]
@@ -55,8 +58,12 @@ assistant turn:
 ]
 ```
 
-The `--quiet` flag silences the "+N new messages" line in normal use; the
-hook's stderr is prefixed `[bab-history]` so you'd notice if it errored.
+The hook is fully CWD-independent — `git rev-parse --show-toplevel` finds
+the repo root regardless of where you launched Claude (`cd src/... &&
+claude` works, as does running from a worktree). If you happen to run
+Claude outside any git tree, the hook silently skips. Output is prefixed
+`[bab-history]` so you'd notice if it errored.
+
 Runtime is well under 1s on the full 8 MB JSONL because the appender skips
 already-rendered messages by UUID.
 
@@ -84,10 +91,12 @@ uv pip install -e /Users/nickanthony/Dev/rlm
 **Ask a question:**
 
 ```bash
-python3 scripts/history/query_history.py "what was the sell pad bug?"
-python3 scripts/history/query_history.py "summarize the steampunk pivot ADRs"
-python3 scripts/history/query_history.py "when did Telemetry.luau land and what does it expose?"
+./scripts/history/sync query "what was the sell pad bug?"
+./scripts/history/sync query "summarize the steampunk pivot ADRs"
+./scripts/history/sync query "when did Telemetry.luau land and what does it expose?"
 ```
+
+(Or call `python3 scripts/history/query_history.py "..."` directly.)
 
 **Flags:**
 
@@ -102,13 +111,31 @@ python3 scripts/history/query_history.py "when did Telemetry.luau land and what 
 
 ## Manual runs
 
+The `sync` wrapper is the recommended entry point — it's the same script
+the Stop hook calls, and it works from any CWD.
+
 ```bash
 # Re-render the .md from scratch (e.g. after pulling a new session)
-python3 scripts/history/export_history.py
+./scripts/history/sync export
 
-# Show pointer + force append
+# Force a verbose append (no `--quiet`)
+./scripts/history/sync append
+
+# Default — silent incremental append (same as the Stop hook)
+./scripts/history/sync
+
+# Ask a question via RLM
+./scripts/history/sync query "what was the sell pad bug?"
+
+# Show the current resume pointer
 cat scripts/history/.last_uuid
-python3 scripts/history/append_history.py
+```
+
+Or call the Python scripts directly — they all use `__file__` to find
+themselves so CWD doesn't matter:
+
+```bash
+python3 /any/path/to/scripts/history/export_history.py
 ```
 
 ## Ignoring the .md from git
