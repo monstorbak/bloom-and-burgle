@@ -123,59 +123,77 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	end
 
 	-- BAB-011: Sell kiosk (clean model with base + post + sign + glow ring)
+	-- BAB-FIX: pad now sits ON TOP of the plot floor (y=1.0) instead of inside it,
+	-- and the touch zone has CanTouch=true so .Touched actually fires.
 	local sellModel = Instance.new("Model")
 	sellModel.Name = "SellKiosk"
 	sellModel.Parent = plot
 
-	-- Base platform (glowing green pad)
+	local sellCenter = origin + Vector3.new(15, 0, 15)
+
+	-- Base platform (glowing green pad — visible AND the touch sensor)
 	local base = Instance.new("Part")
 	base.Name = "Base"
-	base.Size = Vector3.new(12, 0.8, 12)
-	base.Position = origin + Vector3.new(15, 0.4, 15)
+	base.Size = Vector3.new(12, 0.4, 12)
+	base.Position = sellCenter + Vector3.new(0, 1.2, 0)  -- bottom at plot floor (y=1.0)
 	base.Anchored = true
 	base.Material = Enum.Material.Neon
 	base.Color = SELL_PAD_COLOR
+	base.Transparency = 0.15
 	base.TopSurface = Enum.SurfaceType.Smooth
 	base.BottomSurface = Enum.SurfaceType.Smooth
-	base.CanCollide = false
-	base.CanTouch = false
+	base.CanCollide = false  -- walk-through so character isn't blocked
+	base.CanTouch = true     -- BAB-FIX: required for Touched event in PlantHandler
 	base.Parent = sellModel
 
-	-- Glow ring around base (emissive)
+	-- Tall invisible sensor on top of the pad — guarantees Touched fires even if
+	-- the player runs across at speed or hovers on a step, and works on mobile
+	-- where touch hitboxes can graze the pad without intersecting a thin plate.
+	local sensor = Instance.new("Part")
+	sensor.Name = "SellSensor"
+	sensor.Size = Vector3.new(12, 8, 12)
+	sensor.Position = sellCenter + Vector3.new(0, 5, 0)
+	sensor.Anchored = true
+	sensor.Transparency = 1
+	sensor.CanCollide = false
+	sensor.CanTouch = true
+	sensor.CanQuery = false
+	sensor.Parent = sellModel
+
+	-- Glow ring around base (emissive halo, raised to match new base height)
 	local ring = Instance.new("Part")
 	ring.Name = "GlowRing"
 	ring.Shape = Enum.PartType.Cylinder
-	ring.Size = Vector3.new(1.2, 12, 12)
-	ring.Position = origin + Vector3.new(15, 0.8, 15)
+	ring.Size = Vector3.new(0.6, 13.5, 13.5)
 	ring.Anchored = true
 	ring.Material = Enum.Material.Neon
-	ring.Color = Color3.fromRGB(100, 255, 100)
+	ring.Color = Color3.fromRGB(140, 255, 160)
 	ring.CanCollide = false
 	ring.CanTouch = false
-	ring.CFrame = CFrame.new(ring.Position) * CFrame.Angles(0, 0, math.rad(90))
+	ring.CFrame = CFrame.new(sellCenter + Vector3.new(0, 1.05, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	ring.Parent = sellModel
 
-	-- Central post
+	-- Central post (raised to sit on the new pad)
 	local post = Instance.new("Part")
 	post.Name = "Post"
 	post.Shape = Enum.PartType.Cylinder
-	post.Size = Vector3.new(4.5, 2.4, 0.6)
-	post.Position = origin + Vector3.new(15, 1.8, 15)
+	post.Size = Vector3.new(4.5, 0.8, 0.8)
 	post.Anchored = true
 	post.Material = Enum.Material.Metal
-	post.Color = Color3.fromRGB(200, 200, 200)
+	post.Color = Color3.fromRGB(220, 220, 230)
 	post.CanCollide = false
 	post.CanTouch = false
+	post.CFrame = CFrame.new(sellCenter + Vector3.new(0, 3.65, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	post.Parent = sellModel
 
 	-- Sign (neon board with text)
 	local sign = Instance.new("Part")
 	sign.Name = "Sign"
-	sign.Size = Vector3.new(6, 3, 0.4)
-	sign.Position = origin + Vector3.new(15, 3.2, 15)
+	sign.Size = Vector3.new(7, 3.4, 0.4)
+	sign.Position = sellCenter + Vector3.new(0, 6.4, 0)
 	sign.Anchored = true
 	sign.Material = Enum.Material.Neon
-	sign.Color = Color3.fromRGB(0, 200, 0)
+	sign.Color = Color3.fromRGB(40, 220, 90)
 	sign.TopSurface = Enum.SurfaceType.Smooth
 	sign.CanCollide = false
 	sign.CanTouch = false
@@ -200,22 +218,27 @@ local function buildPlot(player: Player, origin: Vector3): Model
 
 	-- Floating prompt above sign
 	local promptGui = Instance.new("BillboardGui")
-	promptGui.Size = UDim2.fromOffset(200, 60)
+	promptGui.Size = UDim2.fromOffset(240, 70)
 	promptGui.StudsOffset = Vector3.new(0, 3.5, 0)
 	promptGui.AlwaysOnTop = true
 	promptGui.Parent = sign
 	local promptText = Instance.new("TextLabel")
 	promptText.Size = UDim2.fromScale(1, 1)
 	promptText.BackgroundTransparency = 1
-	promptText.Text = "Walk here to sell"
-	promptText.TextColor3 = Color3.fromRGB(200, 255, 200)
+	promptText.Text = "💰 Walk on pad to SELL"
+	promptText.TextColor3 = Color3.fromRGB(220, 255, 220)
+	promptText.TextStrokeTransparency = 0
+	promptText.TextStrokeColor3 = Color3.fromRGB(0, 50, 20)
 	promptText.TextScaled = true
-	promptText.Font = Enum.Font.GothamBold
+	promptText.Font = Enum.Font.FredokaOne
 	promptText.Parent = promptGui
 
-	-- Mark the base as sellable collision zone
+	-- BAB-FIX: tag BOTH the visible pad and the invisible sensor so PlantHandler
+	-- wires .Touched on either entry. Owner attribute scopes to this player.
 	base:AddTag("SellPad")
 	base:SetAttribute("OwnerUserId", player.UserId)
+	sensor:AddTag("SellPad")
+	sensor:SetAttribute("OwnerUserId", player.UserId)
 
 	plot.Parent = Workspace
 	return plot

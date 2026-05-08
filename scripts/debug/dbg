@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# dbg — Bloom & Burgle real-time debug CLI.
+#
+# Wraps the Studio MCP bridge (default 127.0.0.1:7878) so Claude Code (or a
+# human) can autonomously inspect, manipulate, and verify game state while a
+# Play session is running in Roblox Studio on this Mac.
+#
+# Usage:
+#   dbg <command> [args]
+#
+# Commands:
+#   health                 Check bridge + active Studio
+#   activate [name]        Set active Studio (first match if name omitted)
+#   console [N]            Last N console lines (default 60)
+#   errors [N]             Last N errors/warnings only (default 30)
+#   tail [seconds]         Stream errors continuously (Ctrl-C to stop)
+#   eval <luau>            Execute Luau in Studio. Snippet should `return` a value.
+#   evalf <file>           Execute Luau from a file
+#   state                  Snapshot of plots/players/inventories/sell-pads
+#   tree [path] [depth]    search_game_tree wrapper
+#   inspect <path>         inspect_instance wrapper
+#   play start|stop        Toggle Play mode
+#   shot [name]            screen_capture → scripts/debug/captures/<name>.png
+#   nav <x> <y> <z>        Move LocalPlayer's character
+#   nav-to <path>          Move LocalPlayer to instance path
+#   key <KeyCode>          Send a keyPress to the running game
+#   sell-test              Force-fill stash + walk to sell pad + verify cash
+#   bug-report             Auto-collect everything (state+console+screenshot) into a dated file
+#   sync <relpath>         Push a single src/ file into the running Studio session
+#   help                   Show this
+
+HERE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd -- "$HERE/../.." && pwd)"
+# shellcheck source=lib.sh
+. "$HERE/lib.sh"
+
+cmd="${1:-help}"; shift || true
+
+case "$cmd" in
+
+    health)
+        bridge_health
+        ;;
+
+    activate)
+        target_name="${1:-}"
+        resp=$(bridge_text list_roblox_studios '{}') || die "list_roblox_studios failed"
+        chosen=$(python3 - "$resp" "$target_name" <<'PY'
+import json, sys
+payload = json.loads(sys.argv[1])
+target = sys.argv[2]
+studios = payload.get("studios", [])
+if not studios:
+    sys.exit("no studios connected")
+if target:
+    matches = [s for s in studios if target.lower() in s["name"].lower()]
+    if not matches: sys.exit(f"no match for '{target}'")
+    print(matches[0]["id"])
+else:
+    print(studios[0]["id"])
+PY
+)
+        bridge_text set_active_studio "$(jq -n --arg id "$chosen" '{studio_id:$id}')"
+        ;;
+
+    console)
+        n="${1:-60}"
+        out=$(bridge_text get_console_output '{}') || die "get_console_output failed"
+        printf '%s\n' "$out" | tail -n "$n"
+        ;;
+
+    errors)
+        n="${1:-30}"
+        out=$(bridge_text get_console_output '{}') || die "get_console_output failed"
+        # Roblox console marks errors via "MessageError"/"MessageWarning" in
+        # the LogService API, but the text dump here doesn't carry that
+        # metadata — match by tokens instead.
+        printf '%s\n' "$out" | grep -E -i 'error|warn|stack begin|attempt to|nil value|fail|\[BAB-ERR\]' | tail -n "$n"
+        ;;
+
+    tail)
+        secs="${1:-2}"
+        printf '%stailing console errors every %ss (Ctrl-C to stop)%s\n' "$C_DIM" "$secs" "$C_OFF" >&2
+        last_hash=""
+        while true; do
+            out=$(bridge_text get_console_output '{}' 2>/dev/null || true)
+            errs=$(printf '%s\n' "$out" | grep -E -i 'error|warn|stack begin|attempt to|nil value|fail|\[BAB-ERR\]' | tail -n 20)
+            h=$(printf '%s' "$errs" | shasum | cut -c1-12)
+            if [ "$h" != "$last_hash" ] && [ -n "$errs" ]; then
+                printf '\n%s── %s ──%s\n' "$C_DIM" "$(date +%H:%M:%S)" "$C_OFF"
+                printf '%s\n' "$errs"
+                last_hash="$h"
+            fi
+            sleep "$secs"
+        done
+        ;;
+
+    eval)
+        code="$*"
+        [ -z "$code" ] && die "usage: dbg eval <luau>"
+        bridge_eval "$code"
+        ;;
+
+    evalf)
+        f="${1:-}"
+        [ -z "$f" ] || [ ! -f "$f" ] && die "usage: dbg evalf <file>"
+        bridge_eval "$(cat "$f")"
+        ;;
+
+    state)
+        # Compose a JSON snapshot of player state, plots, sell pads, inventories.
+        # Uses _G.BabDebug if available (set by DebugHooks.server.luau), otherwise
+        # introspects directly via tags + attributes.
+        bridge_eval '
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local HttpService = game:GetService("HttpService")
+local snap = { ts = os.time(), players = {}, plots = {}, sellPads = {}, planters = {} }
+
+for _, p in Players:GetPlayers() do
+    local cash = nil
+    local ls = p:FindFirstChild("leaderstats")
+    if ls then
+        local c = ls:FindFirstChild("Cash")
+        if c then cash = c.Value end
+    end
+    table.insert(snap.players, {
+        name = p.Name,
+        userId = p.UserId,
+        cash = cash,
+        plotClaimed = p:GetAttribute("PlotClaimed"),
+        plotSlot = p:GetAttribute("PlotSlotIndex"),
+        starterPack = p:GetAttribute("StarterPackGranted"),
+        plantsHarvested = p:GetAttribute("PlantsHarvested"),
+        cashMultiplier = p:GetAttribute("CashMultiplier"),
+    })
+end
+
+for _, plot in game.Workspace:GetChildren() do
+    if plot.Name:match("^Plot_") then
+        table.insert(snap.plots, { name = plot.Name, descendants = #plot:GetDescendants() })
+    end
+end
+
+for _, pad in CollectionService:GetTagged("SellPad") do
+    if pad:IsA("BasePart") then
+        local pos = pad.Position
+        table.insert(snap.sellPads, {
+            name = pad.Name,
+            owner = pad:GetAttribute("OwnerUserId"),
+            wired = pad:GetAttribute("WiredSell"),
+            canTouch = pad.CanTouch,
+            canCollide = pad.CanCollide,
+            pos = string.format("%.1f,%.1f,%.1f", pos.X, pos.Y, pos.Z),
+            size = string.format("%.1fx%.1fx%.1f", pad.Size.X, pad.Size.Y, pad.Size.Z),
+            top = string.format("%.2f", pos.Y + pad.Size.Y/2),
+            bottom = string.format("%.2f", pos.Y - pad.Size.Y/2),
+        })
+    end
+end
+
+local plantedCount, ripeCount, emptyCount = 0, 0, 0
+for _, planter in CollectionService:GetTagged("Planter") do
+    if planter:IsA("BasePart") then
+        if planter:GetAttribute("IsEmpty") then
+            emptyCount = emptyCount + 1
+        else
+            plantedCount = plantedCount + 1
+            if planter:GetAttribute("Ripe") then ripeCount = ripeCount + 1 end
+        end
+    end
+end
+snap.planters = { planted = plantedCount, ripe = ripeCount, empty = emptyCount }
+
+if _G.BabDebug then
+    snap.recentErrors = _G.BabDebug.recentErrors and _G.BabDebug.recentErrors() or nil
+end
+
+return HttpService:JSONEncode(snap)
+' | python3 -m json.tool 2>/dev/null || true
+        ;;
+
+    tree)
+        path="${1:-}"
+        depth="${2:-3}"
+        args=$(jq -n --arg p "$path" --argjson d "$depth" \
+            'if $p == "" then {max_depth:$d} else {path:$p,max_depth:$d} end')
+        bridge_text search_game_tree "$args" | maybe_json
+        ;;
+
+    inspect)
+        path="${1:-}"
+        [ -z "$path" ] && die "usage: dbg inspect <path>"
+        bridge_text inspect_instance "$(jq -n --arg p "$path" '{path:$p}')" | maybe_json
+        ;;
+
+    play)
+        action="${1:-}"
+        case "$action" in
+            start) bridge_text start_stop_play '{"is_start":true}' ;;
+            stop)  bridge_text start_stop_play '{"is_start":false}' ;;
+            status)
+                bridge_eval 'return tostring(game:GetService("RunService"):IsRunning())'
+                ;;
+            *) die "usage: dbg play start|stop|status" ;;
+        esac
+        ;;
+
+    shot)
+        name="${1:-shot-$(date +%Y%m%d-%H%M%S)}"
+        outdir="$ROOT/scripts/debug/captures"
+        mkdir -p "$outdir"
+        out="$outdir/$name.png"
+        # screen_capture requires capture_id. We use ScreenCapture_<timestamp> to dodge dedup caches.
+        cap_id="ScreenCapture_$(date +%s)"
+        resp=$(bridge_call screen_capture "$(jq -n --arg c "$cap_id" '{capture_id:$c}')")
+        # Response is an MCP image content block — extract base64 if present.
+        python3 - "$resp" "$out" <<'PY'
+import json, sys, base64, os
+resp = json.loads(sys.argv[1])
+out = sys.argv[2]
+if not resp.get("ok"):
+    print(f"capture failed: {resp.get('error')}", file=sys.stderr); sys.exit(1)
+content = resp["result"]["content"]
+for c in content:
+    if c.get("type") == "image" and c.get("data"):
+        with open(out, "wb") as f:
+            f.write(base64.b64decode(c["data"]))
+        print(out); sys.exit(0)
+    if c.get("type") == "text":
+        # Some bridges return a path or URL instead of inline data
+        text = c.get("text", "")
+        if os.path.isfile(text):
+            os.replace(text, out); print(out); sys.exit(0)
+        print(text)
+sys.exit(2)
+PY
+        ;;
+
+    nav)
+        x="${1:-0}"; y="${2:-5}"; z="${3:-0}"
+        args=$(jq -n --argjson x "$x" --argjson y "$y" --argjson z "$z" '{x:$x,y:$y,z:$z}')
+        bridge_text character_navigation "$args"
+        ;;
+
+    nav-to)
+        path="${1:-}"
+        [ -z "$path" ] && die "usage: dbg nav-to <instance.path>"
+        bridge_text character_navigation "$(jq -n --arg p "$path" '{instance_path:$p}')"
+        ;;
+
+    key)
+        kc="${1:-}"
+        [ -z "$kc" ] && die "usage: dbg key <KeyCode>"
+        args=$(jq -n --arg k "$kc" '{actions:[{action:"keyPress", key_code:$k}]}')
+        bridge_text user_keyboard_input "$args"
+        ;;
+
+    sell-test)
+        # End-to-end probe of the sell-pad bug fix.
+        # Drives the real game flow: force a planter ripe → teleport player to
+        # harvest it → teleport player onto sell pad → verify cash delta.
+        # Uses no _G handles (execute_luau is sandboxed away from server _G).
+        bridge_eval '
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local HttpService = game:GetService("HttpService")
+local out = { steps = {} }
+local function step(s) table.insert(out.steps, s) end
+
+local p = Players:GetPlayers()[1]
+if not p then return HttpService:JSONEncode({error="no_player"}) end
+out.player = p.Name
+local ls = p:FindFirstChild("leaderstats")
+local cash = ls and ls:FindFirstChild("Cash") :: IntValue?
+if not cash then return HttpService:JSONEncode({error="no_leaderstats"}) end
+out.cashBefore = cash.Value
+
+-- Pick this players first empty planter and force it ripe with sunbloom.
+local planter
+for _, pl in CollectionService:GetTagged("Planter") do
+    if pl:IsA("BasePart") and pl:GetAttribute("OwnerUserId") == p.UserId and pl:GetAttribute("IsEmpty") then
+        planter = pl; break
+    end
+end
+if not planter then return HttpService:JSONEncode({error="no_empty_planter"}) end
+out.planter = planter.Name
+
+-- Forge attributes so the next Heartbeat tick (PlantHandler grow loop) marks
+-- this planter Ripe and renders the bloom. We also set Ripe directly so the
+-- harvest path works even if PlantVisuals happens to lag.
+planter:SetAttribute("IsEmpty", false)
+planter:SetAttribute("PlantedSpecies", "sunbloom")
+planter:SetAttribute("PlantedAt", os.time() - 9999)
+planter:SetAttribute("GrowSeconds", 1)
+planter:SetAttribute("Ripe", true)
+step("forged ripe sunbloom on " .. planter.Name)
+
+-- Find sell pads (Base + SellSensor) for this player.
+local pad
+for _, sp in CollectionService:GetTagged("SellPad") do
+    if sp:IsA("BasePart") and sp:GetAttribute("OwnerUserId") == p.UserId then
+        pad = sp; break
+    end
+end
+if not pad then return HttpService:JSONEncode({error="no_sellpad"}) end
+out.padName = pad.Name
+out.padCanTouch = pad.CanTouch
+out.padWired = pad:GetAttribute("WiredSell")
+
+local char = p.Character
+if not char then return HttpService:JSONEncode({error="no_character"}) end
+local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+if not hrp then return HttpService:JSONEncode({error="no_hrp"}) end
+local prevPos = hrp.Position
+
+-- Step 1: walk onto planter to harvest. Server-side Heartbeat builds a Plant
+-- model on next tick; the planter Touched handler in PlantHandler then runs
+-- harvestPlanter and pushes sunbloom into the players inventory.
+hrp.CFrame = CFrame.new(planter.Position + Vector3.new(0, 4, 0))
+task.wait(0.4)
+step("teleported to planter")
+
+-- Verify harvest happened by checking IsEmpty flipped back true.
+local harvestDeadline = os.clock() + 2
+while os.clock() < harvestDeadline and not planter:GetAttribute("IsEmpty") do task.wait(0.1) end
+out.harvested = planter:GetAttribute("IsEmpty") == true
+step("harvest observed=" .. tostring(out.harvested))
+
+-- Step 2: walk onto sell pad. Touched → SellPad handler → cash payout.
+hrp.CFrame = CFrame.new(pad.Position + Vector3.new(0, 4, 0))
+local sellDeadline = os.clock() + 2
+while os.clock() < sellDeadline and cash.Value == out.cashBefore do task.wait(0.1) end
+out.cashAfter = cash.Value
+out.delta = cash.Value - out.cashBefore
+out.success = out.delta > 0
+step("sell observed; delta=" .. tostring(out.delta))
+
+hrp.CFrame = CFrame.new(prevPos)
+return HttpService:JSONEncode(out)
+' | python3 -m json.tool 2>/dev/null || true
+        ;;
+
+    bug-report)
+        ts=$(date +%Y%m%d-%H%M%S)
+        outdir="$ROOT/scripts/debug/captures/report-$ts"
+        mkdir -p "$outdir"
+        printf '%scollecting bug report → %s%s\n' "$C_DIM" "$outdir" "$C_OFF" >&2
+        bash "$HERE/dbg" state > "$outdir/state.json" 2>&1 || true
+        bash "$HERE/dbg" console 200 > "$outdir/console.log" 2>&1 || true
+        bash "$HERE/dbg" errors 100 > "$outdir/errors.log" 2>&1 || true
+        bash "$HERE/dbg" tree Workspace 2 > "$outdir/workspace.json" 2>&1 || true
+        bash "$HERE/dbg" shot "$outdir/screen" >/dev/null 2>&1 || true
+        printf '%s✔ %s%s\n' "$C_GRN" "$outdir" "$C_OFF"
+        ;;
+
+    sync)
+        rel="${1:-}"
+        [ -z "$rel" ] && die "usage: dbg sync <relative/path/to/Foo.luau>"
+        f="$ROOT/$rel"
+        [ ! -f "$f" ] && die "no such file: $rel"
+        # Map src/ServerScriptService/PlantHandler.server.luau →
+        #     game.ServerScriptService.PlantHandler  (Script)
+        # Map src/StarterPlayerScripts/Foo.client.luau →
+        #     game.StarterPlayer.StarterPlayerScripts.Foo  (LocalScript)
+        # Map src/ReplicatedStorage/Modules/Bar.luau →
+        #     game.ReplicatedStorage.Modules.Bar  (ModuleScript)
+        mapping=$(python3 - "$rel" <<'PY'
+import sys, os
+rel = sys.argv[1]
+parts = rel.split('/')
+if parts[0] != 'src': sys.exit("only src/ paths can be synced")
+parts = parts[1:]
+fname = parts[-1]
+stem = fname.split('.')[0]
+ext = fname.split('.')
+if ext[-1] != 'luau': sys.exit("not a .luau file")
+# Determine class
+if '.server' in fname:
+    cls = 'Script'
+elif '.client' in fname:
+    cls = 'LocalScript'
+else:
+    cls = 'ModuleScript'
+# Map first directory to game tree root
+top = parts[0]
+if top == 'StarterPlayerScripts':
+    chain = ['StarterPlayer', 'StarterPlayerScripts'] + parts[1:-1]
+elif top == 'StarterCharacterScripts':
+    chain = ['StarterPlayer', 'StarterCharacterScripts'] + parts[1:-1]
+else:
+    chain = [top] + parts[1:-1]
+studio = 'game.' + '.'.join(chain + [stem])
+print(f"{studio}::{cls}")
+PY
+) || die "$mapping"
+        studio_path="${mapping%%::*}"
+        cls="${mapping##*::}"
+        printf '%spush %s → %s (%s)%s\n' "$C_DIM" "$rel" "$studio_path" "$cls" "$C_OFF" >&2
+        # Reuse the existing push-to-studio.sh contract (dot-notation + className).
+        printf '%s::%s::%s\n' "$f" "$studio_path" "$cls" | bash "$ROOT/scripts/push-to-studio.sh"
+        ;;
+
+    help|-h|--help|"")
+        sed -n '2,32p' "$0"
+        ;;
+
+    *)
+        die "unknown command: $cmd  (try: dbg help)"
+        ;;
+esac

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(./scripts/debug/dbg:*)",
+      "Bash(scripts/debug/dbg:*)",
+      "Bash(curl -sS -X POST http://127.0.0.1:7878/rpc:*)",
+      "Bash(curl -sS http://127.0.0.1:7878/*)",
+      "Bash(./scripts/studio-rpc.sh:*)",
+      "Bash(./scripts/verify-studio.sh)",
+      "Bash(./scripts/build.sh)",
+      "Bash(rojo build:*)",
+      "Bash(jq:*)",
+      "Bash(python3 -m json.tool)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/debug/dbg health 2>&1 | sed 's/^/[bab] /' ; ./scripts/debug/dbg errors 8 2>/dev/null | sed 's/^/[bab-recent-err] /' || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"${CLAUDE_TOOL_INPUT_file_path:-}\"; case \"$f\" in *.luau|*.lua) echo \"[bab] hint: edited $f — push to live Studio with: ./scripts/debug/dbg sync ${f#*/.claude/worktrees/*/}\" ;; esac",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

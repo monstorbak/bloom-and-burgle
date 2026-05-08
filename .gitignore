@@ -34,5 +34,10 @@ api-keys.json
 # Logs
 *.log
 
-# Local debug
-debug/
+# Local debug scratch (top-level only — keeps scripts/debug/ dev tool tracked)
+/debug/
+# Runtime debug capture artifacts (screenshots, bug-report dirs) — not the toolkit
+scripts/debug/captures/
+
+# Claude Code per-machine state (committed: .claude/settings.json)
+.claude/settings.local.json

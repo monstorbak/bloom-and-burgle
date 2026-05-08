@@ -114,6 +114,11 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
+-- Per-player debounce shared across all SellPad parts (base + invisible sensor
+-- both touch on a single walk-over, so we only want to actually run sell logic
+-- and fire the toast once per ~0.5s window).
+local sellCooldown: { [number]: number } = {}
+
 -- Wire SellPad on a per-instance basis (handles plots created mid-game)
 local function wireSellPad(sellPad: Instance)
 	if not sellPad:IsA("BasePart") then return end
@@ -125,6 +130,10 @@ local function wireSellPad(sellPad: Instance)
 		local player = Players:GetPlayerFromCharacter(character)
 		if not player then return end
 		if sellPad:GetAttribute("OwnerUserId") ~= player.UserId then return end
+
+		local now = os.clock()
+		if sellCooldown[player.UserId] and now - sellCooldown[player.UserId] < 0.5 then return end
+		sellCooldown[player.UserId] = now
 
 		local inv = getInv(player)
 		local total = 0
@@ -271,6 +280,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	inventory[player.UserId] = nil
+	sellCooldown[player.UserId] = nil
 end)
 
 -- ============================================================================
