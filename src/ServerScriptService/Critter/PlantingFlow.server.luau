@@ -4,7 +4,7 @@
 -- Extracted from PlantHandler.server.luau (P1.1 / ADR-4). Owns:
 --   - `plantSeedAt(player, planter, speciesId, freebie?)` — single-pod planting
 --   - PlantSeed RemoteEvent listener (client-initiated planting via UI)
---   - Players.PlayerAdded starter pack (BAB-002 free sunblooms on first plot)
+--   - Players.PlayerAdded starter pack (BAB-002 free starter critter on first plot)
 --   - Players.PlayerRemoving cleanup hook for EconomyPad cooldowns
 --
 -- Other modules import the planting helper if they need it (SeedShop did
@@ -26,6 +26,14 @@ local CritterRegistry = require(Critter:WaitForChild("CritterRegistry") :: Modul
 local EconomyPad = require(Critter:WaitForChild("EconomyPad") :: ModuleScript)
 
 local PlantSeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PlantSeed") :: RemoteEvent
+
+-- One-shot starter pack species. Common rarity, lowest baseValue (20g) so the
+-- free starter pods don't pre-monetize too much first-session cash. Was
+-- "sunbloom" pre-BAB-STEAMPUNK; pivot retired the legacy plants but missed
+-- updating this hook (CritterData.get(stale_id) returned nil → empty pods).
+-- Fix originated as 737a2f7 on PlantHandler.server.luau pre-split; ported
+-- here during P1.1 merge resolution with main (2026-05-08).
+local STARTER_SPECIES = "cogwork_rat"
 
 local function plantSeedAt(player: Player, planter: BasePart, speciesId: string, freebie: boolean?): boolean
 	if planter:GetAttribute("OwnerUserId") ~= player.UserId then return false end
@@ -77,10 +85,10 @@ PlantSeedRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
 	plantSeedAt(player, planterRef, speciesId, false)
 end)
 
--- Starter pack: free sunblooms on first plot. BAB-002: only fire once per
+-- Starter pack: free STARTER_SPECIES on first plot. BAB-002: only fire once per
 -- account; flagged on the player via attribute `StarterPackGranted` which
 -- LeaderstatsScript persists. Without this, every login refills empties with
--- free sunblooms = trivial farming exploit.
+-- free starters = trivial farming exploit.
 Players.PlayerAdded:Connect(function(player)
 	CritterRegistry.getInv(player)  -- create the bag eagerly so other modules find it
 	task.spawn(function()
@@ -94,7 +102,7 @@ Players.PlayerAdded:Connect(function(player)
 			if planter:IsA("BasePart")
 				and planter:GetAttribute("OwnerUserId") == player.UserId
 				and planter:GetAttribute("IsEmpty") then
-				plantSeedAt(player, planter, "sunbloom", true)
+				plantSeedAt(player, planter, STARTER_SPECIES, true)
 			end
 		end
 		player:SetAttribute("StarterPackGranted", true)

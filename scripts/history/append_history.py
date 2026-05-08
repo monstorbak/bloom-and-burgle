@@ -60,8 +60,11 @@ def main():
     if last_session_name != src.name or not out_path.is_file():
         if not args.quiet:
             print(f"[append_history] session changed or .md missing — full export")
-        from export_history import main as full_export
-        full_export()
+        # Use the programmatic run() entrypoint so we don't accidentally
+        # re-parse our own argv (which carries --quiet, an export flag we
+        # don't accept).
+        from export_history import run as full_export
+        full_export(out=args.out)
         return
 
     new_chunks: list[str] = []

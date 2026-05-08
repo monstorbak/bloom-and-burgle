@@ -24,6 +24,25 @@ Confirm which one you are by checking `uname` — Darwin = G-Tard, Linux = Lin.
 6. **No silent regressions.** If you break something on live, file a ticket *retroactively* and own it.
 7. **Money decisions need human in the loop.** Pricing, paid features, monetization changes → ping Retard on WhatsApp first.
 
+## How you recall past sessions
+
+Every assistant turn is mirrored to `Bloom&Burgle_ChatHistory.md` at the
+repo root (Stop hook in `.claude/settings.json`). Lossless source is at
+`~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`.
+
+**Before asking the user "what did we decide about X?" — query the
+transcript first:**
+
+```bash
+./scripts/history/sync query "what did we decide about X?"
+```
+
+The wrapper works from any CWD. Backed by RLM (a sub-LM with REPL access
+to the JSONL) so token cost is ~5–15K input regardless of transcript
+size. Setup: `pip install rlms anthropic` + `export ANTHROPIC_API_KEY=...`.
+
+See `CLAUDE.md` (root) for the full recall protocol.
+
 ## How you talk to your peer
 
 WhatsApp. Format: `[BAB-NNN] <verb>: <summary>`. See `AGENT_COORDINATION/PROTOCOL.md` for the verb list. Keep it parseable.
