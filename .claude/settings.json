@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "./scripts/debug/dbg health 2>&1 | sed 's/^/[bab] /' ; ./scripts/debug/dbg errors 8 2>/dev/null | sed 's/^/[bab-recent-err] /' || true",
+            "command": "./scripts/debug/dbg health 2>&1 | sed 's/^/[bab] /' ; ./scripts/debug/dbg errors 8 2>/dev/null | sed 's/^/[bab-recent-err] /' || true ; r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -f \"$r/Bloom&Burgle_ChatHistory.md\" ]; then sz=$(wc -c < \"$r/Bloom&Burgle_ChatHistory.md\" | tr -d ' '); kb=$((sz/1024)); echo \"[bab-history] transcript ready: $r/Bloom&Burgle_ChatHistory.md (${kb}KB). Query past decisions with: ./scripts/history/sync query \\\"...\\\" — see CLAUDE.md.\"; fi",
             "timeout": 5
           }
         ]
