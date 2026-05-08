@@ -1,9 +1,12 @@
 --!strict
 -- ClassBadgeHUD: persistent identity HUD per Bloom&Burgle_Design_Spec.md §3.1.
--- Top-left corner of the screen, never moves. Shows:
---   - Class crest + name (e.g. "🛡 KNIGHT")
---   - Cog Parts secondary currency chip
---   - Stable count chip (e.g. "🐾 4 / 6")
+-- Top-left corner of the screen, never moves.
+--
+-- BAB-UX (2026-05-08): collapsed from 3 stacked frames (124px tall column)
+-- to one wider horizontal card (54px tall). Saves ~70px of vertical screen
+-- space, letting the world signage and the objective hint banner breathe.
+-- Layout: [crest] HEXER  ⚙ 312  🐾 0/6
+--
 -- Rebuilds on Class attribute change so respeccing reflects immediately.
 
 local Players = game:GetService("Players")
@@ -36,127 +39,161 @@ screen.IgnoreGuiInset = true
 screen.DisplayOrder = 50
 screen.Parent = pg
 
--- Outer column container, top-left corner with safe-area padding
-local column = Instance.new("Frame")
-column.Name = "Column"
-column.AnchorPoint = Vector2.new(0, 0)
-column.Position = UDim2.fromOffset(12, 80)            -- below Roblox top bar
-column.Size = UDim2.fromOffset(180, 130)
-column.BackgroundTransparency = 1
-column.Parent = screen
-local listLayout = Instance.new("UIListLayout")
-listLayout.FillDirection = Enum.FillDirection.Vertical
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 6)
-listLayout.Parent = column
+-- One horizontal card holds class + cog + stable. Width grows with content
+-- but capped so it never spans more than ~25% of the screen on a phone.
+local card = Instance.new("Frame")
+card.Name = "ClassCard"
+card.AnchorPoint = Vector2.new(0, 0)
+card.Position = UDim2.fromOffset(12, 80)            -- below Roblox top bar
+card.Size = UDim2.fromOffset(280, 54)
+card.BackgroundColor3 = BrandColors.OilBlack
+card.BackgroundTransparency = 0.1
+card.BorderSizePixel = 0
+card.Parent = screen
+makeCorner(card, 12)
+makeStroke(card, BrandColors.Brass, 2)
+do
+	local sz = Instance.new("UISizeConstraint")
+	sz.MinSize = Vector2.new(220, 48)
+	sz.MaxSize = Vector2.new(320, 60)
+	sz.Parent = card
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 8)
+	pad.Parent = card
+	local row = Instance.new("UIListLayout")
+	row.FillDirection = Enum.FillDirection.Horizontal
+	row.SortOrder = Enum.SortOrder.LayoutOrder
+	row.Padding = UDim.new(0, 8)
+	row.VerticalAlignment = Enum.VerticalAlignment.Center
+	row.Parent = card
+end
 
--- ── Class badge ───────────────────────────────────────────────
-local classBadge = Instance.new("Frame")
-classBadge.Name = "ClassBadge"
-classBadge.LayoutOrder = 1
-classBadge.Size = UDim2.fromOffset(180, 44)
-classBadge.BackgroundColor3 = BrandColors.OilBlack
-classBadge.BackgroundTransparency = 0.1
-classBadge.BorderSizePixel = 0
-classBadge.Parent = column
-makeCorner(classBadge, 12)
-makeStroke(classBadge, BrandColors.Brass, 2)
+-- ── Crest + class name ────────────────────────────────────────
+local classGroup = Instance.new("Frame")
+classGroup.Name = "ClassGroup"
+classGroup.LayoutOrder = 1
+classGroup.BackgroundTransparency = 1
+classGroup.Size = UDim2.new(0, 130, 1, -8)
+classGroup.Parent = card
 
 local crestLbl = Instance.new("TextLabel")
 crestLbl.Name = "Crest"
 crestLbl.AnchorPoint = Vector2.new(0, 0.5)
-crestLbl.Position = UDim2.new(0, 8, 0.5, 0)
-crestLbl.Size = UDim2.fromOffset(34, 34)
+crestLbl.Position = UDim2.new(0, 0, 0.5, 0)
+crestLbl.Size = UDim2.fromOffset(28, 28)
 crestLbl.BackgroundTransparency = 1
 crestLbl.Text = "?"
 crestLbl.TextColor3 = BrandColors.GoggleGold
 crestLbl.TextScaled = true
 crestLbl.Font = Enum.Font.FredokaOne
-crestLbl.Parent = classBadge
+crestLbl.Parent = classGroup
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 24; tx.Parent = crestLbl
+end
 
 local nameLbl = Instance.new("TextLabel")
 nameLbl.Name = "ClassName"
 nameLbl.AnchorPoint = Vector2.new(0, 0.5)
-nameLbl.Position = UDim2.new(0, 50, 0.5, 0)
-nameLbl.Size = UDim2.new(1, -58, 0, 22)
+nameLbl.Position = UDim2.new(0, 32, 0.5, 0)
+nameLbl.Size = UDim2.new(1, -34, 0, 20)
 nameLbl.BackgroundTransparency = 1
 nameLbl.Text = "PICK CLASS"
 nameLbl.TextColor3 = BrandColors.SteamCream
 nameLbl.TextScaled = true
 nameLbl.TextXAlignment = Enum.TextXAlignment.Left
 nameLbl.Font = Enum.Font.FredokaOne
-nameLbl.Parent = classBadge
+nameLbl.Parent = classGroup
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 18; tx.Parent = nameLbl
+end
 
--- ── Cog Parts chip ────────────────────────────────────────────
-local cogChip = Instance.new("Frame")
-cogChip.Name = "CogChip"
-cogChip.LayoutOrder = 2
-cogChip.Size = UDim2.fromOffset(180, 36)
-cogChip.BackgroundColor3 = BrandColors.OilBlack
-cogChip.BackgroundTransparency = 0.15
-cogChip.BorderSizePixel = 0
-cogChip.Parent = column
-makeCorner(cogChip, 10)
-makeStroke(cogChip, BrandColors.IronworkCharcoal, 1)
+-- A thin vertical separator between class and the inline counters.
+local sep = Instance.new("Frame")
+sep.Name = "Sep"
+sep.LayoutOrder = 2
+sep.Size = UDim2.new(0, 1, 0.6, 0)
+sep.AnchorPoint = Vector2.new(0, 0.5)
+sep.Position = UDim2.new(0, 0, 0.5, 0)
+sep.BackgroundColor3 = BrandColors.IronworkCharcoal
+sep.BackgroundTransparency = 0.4
+sep.BorderSizePixel = 0
+sep.Parent = card
+
+-- ── Inline cog chip ───────────────────────────────────────────
+local cogGroup = Instance.new("Frame")
+cogGroup.Name = "CogGroup"
+cogGroup.LayoutOrder = 3
+cogGroup.BackgroundTransparency = 1
+cogGroup.Size = UDim2.new(0, 70, 1, -8)
+cogGroup.Parent = card
 
 local cogIcon = Instance.new("TextLabel")
 cogIcon.AnchorPoint = Vector2.new(0, 0.5)
-cogIcon.Position = UDim2.new(0, 8, 0.5, 0)
-cogIcon.Size = UDim2.fromOffset(24, 24)
+cogIcon.Position = UDim2.new(0, 0, 0.5, 0)
+cogIcon.Size = UDim2.fromOffset(20, 20)
 cogIcon.BackgroundTransparency = 1
 cogIcon.Text = "⚙"
 cogIcon.TextColor3 = BrandColors.GoggleGold
 cogIcon.TextScaled = true
 cogIcon.Font = Enum.Font.FredokaOne
-cogIcon.Parent = cogChip
+cogIcon.Parent = cogGroup
 
 local cogLbl = Instance.new("TextLabel")
 cogLbl.Name = "CogValue"
 cogLbl.AnchorPoint = Vector2.new(0, 0.5)
-cogLbl.Position = UDim2.new(0, 36, 0.5, 0)
-cogLbl.Size = UDim2.new(1, -42, 0, 20)
+cogLbl.Position = UDim2.new(0, 24, 0.5, 0)
+cogLbl.Size = UDim2.new(1, -26, 0, 18)
 cogLbl.BackgroundTransparency = 1
-cogLbl.Text = "0 cog parts"
+cogLbl.Text = "0"
 cogLbl.TextColor3 = BrandColors.SteamCream
 cogLbl.TextScaled = true
 cogLbl.TextXAlignment = Enum.TextXAlignment.Left
 cogLbl.Font = Enum.Font.GothamBold
-cogLbl.Parent = cogChip
+cogLbl.Parent = cogGroup
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 16; tx.Parent = cogLbl
+end
 
--- ── Stable chip ──────────────────────────────────────────────
-local stableChip = Instance.new("Frame")
-stableChip.Name = "StableChip"
-stableChip.LayoutOrder = 3
-stableChip.Size = UDim2.fromOffset(180, 32)
-stableChip.BackgroundColor3 = BrandColors.OilBlack
-stableChip.BackgroundTransparency = 0.2
-stableChip.BorderSizePixel = 0
-stableChip.Parent = column
-makeCorner(stableChip, 10)
-makeStroke(stableChip, BrandColors.IronworkCharcoal, 1)
+-- ── Inline stable chip ────────────────────────────────────────
+local stableGroup = Instance.new("Frame")
+stableGroup.Name = "StableGroup"
+stableGroup.LayoutOrder = 4
+stableGroup.BackgroundTransparency = 1
+stableGroup.Size = UDim2.new(0, 60, 1, -8)
+stableGroup.Parent = card
 
 local stableIcon = Instance.new("TextLabel")
 stableIcon.AnchorPoint = Vector2.new(0, 0.5)
-stableIcon.Position = UDim2.new(0, 8, 0.5, 0)
-stableIcon.Size = UDim2.fromOffset(22, 22)
+stableIcon.Position = UDim2.new(0, 0, 0.5, 0)
+stableIcon.Size = UDim2.fromOffset(20, 20)
 stableIcon.BackgroundTransparency = 1
 stableIcon.Text = "🐾"
 stableIcon.TextScaled = true
 stableIcon.Font = Enum.Font.FredokaOne
-stableIcon.Parent = stableChip
+stableIcon.Parent = stableGroup
 
 local stableLbl = Instance.new("TextLabel")
 stableLbl.Name = "StableValue"
 stableLbl.AnchorPoint = Vector2.new(0, 0.5)
-stableLbl.Position = UDim2.new(0, 36, 0.5, 0)
-stableLbl.Size = UDim2.new(1, -42, 0, 18)
+stableLbl.Position = UDim2.new(0, 24, 0.5, 0)
+stableLbl.Size = UDim2.new(1, -26, 0, 18)
 stableLbl.BackgroundTransparency = 1
-stableLbl.Text = "Stable 0 / 6"
+stableLbl.Text = "0/6"
 stableLbl.TextColor3 = BrandColors.SteamCream
 stableLbl.TextScaled = true
 stableLbl.TextXAlignment = Enum.TextXAlignment.Left
 stableLbl.Font = Enum.Font.GothamBold
-stableLbl.Parent = stableChip
+stableLbl.Parent = stableGroup
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 16; tx.Parent = stableLbl
+end
+
+-- Aliases for the live-update bindings below — they referenced the old
+-- variable names (classBadge, cogChip, stableChip) for the .UIStroke pulse
+-- on scrap. The pulse target is now the whole card, since cog is inline.
+local classBadge = card
+local cogChip = card
 
 -- ── Live update bindings ──────────────────────────────────────
 local function refreshClass()
@@ -179,13 +216,19 @@ end
 
 local function refreshCog()
 	local v = player:GetAttribute("CogParts") or 0
-	cogLbl.Text = string.format("%d cog parts", v)
+	-- Inline format: just the number. The ⚙ icon next to it does the labelling.
+	if v >= 1000 then
+		cogLbl.Text = string.format("%.1fK", v / 1000):gsub("%.0K", "K")
+	else
+		cogLbl.Text = tostring(v)
+	end
 end
 
 local function refreshStable()
 	local size = player:GetAttribute("StableSize") or 0
 	local cap = player:GetAttribute("StableCapacity") or 6
-	stableLbl.Text = string.format("Stable %d / %d", size, cap)
+	-- Inline format: 0/6. The 🐾 icon does the labelling.
+	stableLbl.Text = string.format("%d/%d", size, cap)
 end
 
 refreshClass()

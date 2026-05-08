@@ -66,8 +66,11 @@ refreshDevBadge()
 Workspace:GetAttributeChangedSignal("DevMode"):Connect(refreshDevBadge)
 
 -- ── Top-right cash chip ──────────────────────────────────────────────
+-- BAB-UX (2026-05-08): shrunk from 240×70 (max 360×90) to 200×56 (max 280×72).
+-- The previous size dominated the top-right quadrant and crowded the seed-bag
+-- list below it. The chip now reads as a corner status, not a billboard.
 local cashFrame = Instance.new("Frame")
-cashFrame.Size = UDim2.new(0, 240, 0, 70)
+cashFrame.Size = UDim2.new(0, 200, 0, 56)
 cashFrame.AnchorPoint = Vector2.new(1, 0)
 cashFrame.Position = UDim2.new(1, -16, 0, 16)
 cashFrame.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
@@ -75,9 +78,9 @@ cashFrame.BackgroundTransparency = 0.1
 cashFrame.BorderSizePixel = 0
 cashFrame.Parent = screen
 do
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 16); c.Parent = cashFrame
-	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 200, 80); s.Thickness = 3; s.Parent = cashFrame
-	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(180, 56); sz.MaxSize = Vector2.new(360, 90); sz.Parent = cashFrame
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = cashFrame
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(255, 200, 80); s.Thickness = 2; s.Parent = cashFrame
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(160, 48); sz.MaxSize = Vector2.new(280, 72); sz.Parent = cashFrame
 end
 
 local cashLabel = Instance.new("TextLabel")
@@ -91,16 +94,23 @@ cashLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 cashLabel.Font = Enum.Font.FredokaOne
 cashLabel.TextScaled = true
 cashLabel.Parent = cashFrame
+-- Cap the cash text at 28pt so "$8.5K" doesn't fill the chip top-to-bottom.
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 28; tx.Parent = cashLabel
+end
 
 -- ── Seed inventory chip (under cash) ──────────────────────────────────
 local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 
+-- BAB-UX (2026-05-08): seed bag tracks the smaller cash chip — y-offset
+-- 95 → 80 (cash chip is now 56px tall + 16px top gutter + 8px gap = 80).
+-- Width 240 → 200 to match the cash chip footprint.
 local seedFrame = Instance.new("Frame")
 seedFrame.Name = "SeedInventory"
-seedFrame.Size = UDim2.new(0, 240, 0, 0)  -- height auto via UIListLayout
+seedFrame.Size = UDim2.new(0, 200, 0, 0)  -- height auto via UIListLayout
 seedFrame.AutomaticSize = Enum.AutomaticSize.Y
 seedFrame.AnchorPoint = Vector2.new(1, 0)
-seedFrame.Position = UDim2.new(1, -16, 0, 95)
+seedFrame.Position = UDim2.new(1, -16, 0, 80)
 seedFrame.BackgroundColor3 = Color3.fromRGB(35, 25, 55)
 seedFrame.BackgroundTransparency = 0.1
 seedFrame.BorderSizePixel = 0
@@ -214,31 +224,44 @@ HarvestPopupRE.OnClientEvent:Connect(function(data)
 end)
 
 -- ── Top-center objective banner ──────────────────────────────────────
+-- BAB-UX (2026-05-08): toned down + shrunk.
+--   - Width 0.55 → 0.40 of screen so it stops crowding the world signage
+--     behind it (PAWN FORGE, etc.).
+--   - Bright-green stroke → Brass; thinner. Per Spec §3.4 the modal is the
+--     visual peak, not the tutorial banner.
+--   - Text capped at 18pt so long copy ("Buy eggs at the EGG EMPORIUM…")
+--     wraps to 2 lines instead of ballooning to fill the banner.
+--   - Auto-hides when the player is within 14 studs of any tagged kiosk
+--     (the kiosk's own ProximityPrompt takes over).
 local hintFrame = Instance.new("Frame")
-hintFrame.Size = UDim2.new(0.55, 0, 0, 60)
+hintFrame.Name = "ObjectiveHint"
+hintFrame.Size = UDim2.new(0.40, 0, 0, 52)
 hintFrame.AnchorPoint = Vector2.new(0.5, 0)
-hintFrame.Position = UDim2.new(0.5, 0, 0, 16)
+hintFrame.Position = UDim2.new(0.5, 0, 0, 12)
 hintFrame.BackgroundColor3 = Color3.fromRGB(25, 20, 45)
-hintFrame.BackgroundTransparency = 0.1
+hintFrame.BackgroundTransparency = 0.25
 hintFrame.BorderSizePixel = 0
 hintFrame.Parent = screen
 do
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = hintFrame
-	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(120, 255, 140); s.Thickness = 2; s.Parent = hintFrame
-	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(280, 50); sz.MaxSize = Vector2.new(620, 70); sz.Parent = hintFrame
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = hintFrame
+	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(200, 146, 63); s.Thickness = 1; s.Parent = hintFrame
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(260, 44); sz.MaxSize = Vector2.new(480, 60); sz.Parent = hintFrame
 end
 
 local hintLabel = Instance.new("TextLabel")
-hintLabel.Size = UDim2.new(1, -20, 1, 0)
-hintLabel.Position = UDim2.fromOffset(10, 0)
+hintLabel.Size = UDim2.new(1, -20, 1, -8)
+hintLabel.Position = UDim2.fromOffset(10, 4)
 hintLabel.BackgroundTransparency = 1
-hintLabel.Text = "🌸 Walk into a glowing PINK pad to claim your plot"
+hintLabel.Text = "🌸 Walk into a glowing GOLD pad to claim your plot"
 hintLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
 hintLabel.TextStrokeTransparency = 0.5
 hintLabel.Font = Enum.Font.GothamBold
 hintLabel.TextScaled = true
 hintLabel.TextWrapped = true
 hintLabel.Parent = hintFrame
+do
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 18; tx.Parent = hintLabel
+end
 
 -- ── Bottom-left return-to-plot button ────────────────────────────────
 local returnBtn = Instance.new("TextButton")
@@ -297,10 +320,53 @@ task.spawn(function()
 end)
 
 -- ── Update objective hint based on player state ───────────────────────
+-- BAB-UX (2026-05-08): smarter content + auto-hide near kiosks.
+--   1. If stash already has seeds, "press E on a pod" — don't tell the
+--      player to buy seeds they already own.
+--   2. When player is within 14 studs of a tagged kiosk (Planter, SellPad,
+--      ScrapPad, ClaimPad), the kiosk's own ProximityPrompt is doing the
+--      job. Hide the banner so the world signage isn't competing.
+local KIOSK_TAGS = { "Planter", "SellPad", "ScrapPad", "ClaimPad" }
+local KIOSK_HIDE_RADIUS = 14
+
+local function hasSeeds(): boolean
+	for _, attr in player:GetAttributes() do end  -- noop, attribute changed signal handles refresh
+	for k, v in player:GetAttributes() do
+		if typeof(k) == "string" and k:sub(1, 6) == "Stash_" and typeof(v) == "number" and v > 0 then
+			return true
+		end
+	end
+	return false
+end
+
+local function nearKiosk(): boolean
+	local char = player.Character
+	if not char then return false end
+	local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not hrp then return false end
+	local pos = hrp.Position
+	for _, tag in KIOSK_TAGS do
+		for _, kiosk in CollectionService:GetTagged(tag) do
+			if kiosk:IsA("BasePart") then
+				if (kiosk.Position - pos).Magnitude <= KIOSK_HIDE_RADIUS then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
 task.spawn(function()
 	while true do
+		-- Hide near kiosks; the kiosk's own UI takes over.
+		if nearKiosk() then
+			hintFrame.Visible = false
+			task.wait(0.5)
+			continue
+		end
+
 		local claimed = player:GetAttribute("PlotClaimed")
-		local harvested = player:GetAttribute("PlantsHarvested") or 0
 		-- Count current ripe + growing plants on player's plot
 		local growing, ripe = 0, 0
 		for _, planter in CollectionService:GetTagged("Planter") do
@@ -315,13 +381,19 @@ task.spawn(function()
 
 		if not claimed then
 			hintLabel.Text = "⚙ Touch a glowing GOLD pad to claim your Hatchery"
-		elseif growing == 0 then
-			hintLabel.Text = "🥚 Buy eggs at the EGG EMPORIUM, then press E on a pod"
 		elseif ripe > 0 then
-			hintLabel.Text = string.format("💰 %d ripe — walk on the ORANGE PAWN FORGE to sell!", ripe)
+			hintLabel.Text = string.format("💰 %d ripe — walk on the PAWN FORGE to sell!", ripe)
+		elseif growing == 0 then
+			-- Smarter: if stash has seeds, the player just needs to plant them.
+			if hasSeeds() then
+				hintLabel.Text = "🥚 You have seeds — press E on a pod to plant"
+			else
+				hintLabel.Text = "🥚 Buy seeds at the EGG EMPORIUM"
+			end
 		else
 			hintLabel.Text = string.format("🥚 %d incubating… come back soon", growing)
 		end
+		hintFrame.Visible = true
 		task.wait(1.5)
 	end
 end)
