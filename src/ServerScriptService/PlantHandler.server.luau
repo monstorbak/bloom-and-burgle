@@ -28,6 +28,12 @@ local PlantSeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild(
 
 local MAX_OFFLINE_SECONDS = 24 * 60 * 60  -- BAB-002: cap offline grow at 24h
 
+-- One-shot starter pack species. Common rarity, lowest baseValue (20g) so the
+-- free starter pods don't pre-monetize too much first-session cash. Was
+-- "sunbloom" pre-BAB-STEAMPUNK; pivot retired the legacy plants but missed
+-- updating this hook (PlantData.get(stale_id) returned nil → empty pods).
+local STARTER_SPECIES = "cogwork_rat"
+
 -- inventory[userId][speciesId .. ":" .. (mutationId or "")] = count
 local inventory: { [number]: { [string]: number } } = {}
 
@@ -483,10 +489,10 @@ PlantSeedRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
 	plantSeedAt(player, planterRef, speciesId, false)
 end)
 
--- Starter pack: free sunblooms on first plot. BAB-002: only fire once per
+-- Starter pack: free STARTER_SPECIES on first plot. BAB-002: only fire once per
 -- account; flagged on the player via attribute `StarterPackGranted` which
 -- LeaderstatsScript persists. Without this, every login refills empties with
--- free sunblooms = trivial farming exploit.
+-- free starters = trivial farming exploit.
 Players.PlayerAdded:Connect(function(player)
 	getInv(player)
 	task.spawn(function()
@@ -500,7 +506,7 @@ Players.PlayerAdded:Connect(function(player)
 			if planter:IsA("BasePart")
 				and planter:GetAttribute("OwnerUserId") == player.UserId
 				and planter:GetAttribute("IsEmpty") then
-				plantSeedAt(player, planter, "sunbloom", true)
+				plantSeedAt(player, planter, STARTER_SPECIES, true)
 			end
 		end
 		player:SetAttribute("StarterPackGranted", true)
