@@ -314,13 +314,13 @@ task.spawn(function()
 		end
 
 		if not claimed then
-			hintLabel.Text = "🌸 Walk into a glowing PINK pad to claim your plot"
+			hintLabel.Text = "⚙ Touch a glowing GOLD pad to claim your Hatchery"
 		elseif growing == 0 then
-			hintLabel.Text = "🛒 Buy seeds at the SHOP, then press E on a planter to plant"
+			hintLabel.Text = "🥚 Buy eggs at the EGG EMPORIUM, then press E on a pod"
 		elseif ripe > 0 then
-			hintLabel.Text = string.format("💰 %d ripe — walk on the GREEN sell pad to cash in!", ripe)
+			hintLabel.Text = string.format("💰 %d ripe — walk on the ORANGE PAWN FORGE to sell!", ripe)
 		else
-			hintLabel.Text = string.format("🌱 %d growing… come back soon", growing)
+			hintLabel.Text = string.format("🥚 %d incubating… come back soon", growing)
 		end
 		task.wait(1.5)
 	end

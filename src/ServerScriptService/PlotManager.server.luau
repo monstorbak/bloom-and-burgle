@@ -284,24 +284,47 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	ring.CFrame = CFrame.new(sellCenter + Vector3.new(0, 1.05, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	ring.Parent = sellModel
 
-	-- Central post (brass)
+	-- BAB-FINDABILITY: Tall light beacon pillar — visible plot-wide so the
+	-- player can spot the sell pad from any position on their Hatchery.
+	local beacon = Instance.new("Part")
+	beacon.Name = "SellBeacon"
+	beacon.Shape = Enum.PartType.Cylinder
+	beacon.Size = Vector3.new(60, 1.4, 1.4)  -- 60 studs tall (X axis pre-rotation)
+	beacon.Anchored = true
+	beacon.Material = Enum.Material.Neon
+	beacon.Color = BrandColors.EmberOrange
+	beacon.Transparency = 0.4
+	beacon.CanCollide = false
+	beacon.CanTouch = false
+	beacon.CFrame = CFrame.new(sellCenter + Vector3.new(0, 31, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	beacon.Parent = sellModel
+	-- Add a strong PointLight at base to brighten the surroundings
+	local beaconLight = Instance.new("PointLight")
+	beaconLight.Color = BrandColors.EmberOrange
+	beaconLight.Brightness = 3
+	beaconLight.Range = 24
+	beaconLight.Parent = beacon
+
+	-- Tall central post (brass) — much taller so signage is high + readable from far
 	local post = Instance.new("Part")
 	post.Name = "Post"
 	post.Shape = Enum.PartType.Cylinder
-	post.Size = Vector3.new(4.5, 0.8, 0.8)
+	post.Size = Vector3.new(8.5, 0.8, 0.8)
 	post.Anchored = true
 	post.Material = Enum.Material.Metal
 	post.Color = BrandColors.Brass
 	post.CanCollide = false
 	post.CanTouch = false
-	post.CFrame = CFrame.new(sellCenter + Vector3.new(0, 3.65, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	post.CFrame = CFrame.new(sellCenter + Vector3.new(0, 5.7, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	post.Parent = sellModel
 
-	-- Sign (neon brass board)
+	-- BAB-FINDABILITY: Big neon sign block (visible from any direction).
+	-- Wider + taller than before, with SurfaceGuis on ALL FOUR vertical faces
+	-- so "💰 SELL" reads from every approach angle.
 	local sign = Instance.new("Part")
 	sign.Name = "Sign"
-	sign.Size = Vector3.new(7, 3.4, 0.4)
-	sign.Position = sellCenter + Vector3.new(0, 6.4, 0)
+	sign.Size = Vector3.new(8, 4, 8)             -- chunky cube, 4 readable faces
+	sign.Position = sellCenter + Vector3.new(0, 11, 0)
 	sign.Anchored = true
 	sign.Material = Enum.Material.Neon
 	sign.Color = BrandColors.EmberOrange
@@ -310,35 +333,38 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	sign.CanTouch = false
 	sign.Parent = sellModel
 
-	local signGui = Instance.new("SurfaceGui")
-	signGui.Face = Enum.NormalId.Front
-	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	signGui.PixelsPerStud = 40
-	signGui.Parent = sign
+	-- Render the same "💰 SELL" message on all 4 vertical faces of the sign cube.
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right } do
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = face
+		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		sg.PixelsPerStud = 50
+		sg.Parent = sign
+		local txt = Instance.new("TextLabel")
+		txt.Size = UDim2.fromScale(1, 1)
+		txt.BackgroundTransparency = 0.2
+		txt.BackgroundColor3 = BrandColors.OilBlack
+		txt.Text = "💰\nSELL"
+		txt.TextColor3 = BrandColors.SteamCream
+		txt.TextStrokeTransparency = 0
+		txt.TextStrokeColor3 = BrandColors.OilBlack
+		txt.TextScaled = true
+		txt.Font = Enum.Font.FredokaOne
+		txt.Parent = sg
+	end
 
-	local signText = Instance.new("TextLabel")
-	signText.Size = UDim2.fromScale(1, 1)
-	signText.BackgroundTransparency = 0.25
-	signText.BackgroundColor3 = BrandColors.OilBlack
-	signText.Text = "PAWN\nFORGE"
-	signText.TextColor3 = BrandColors.SteamCream
-	signText.TextStrokeTransparency = 0
-	signText.TextStrokeColor3 = BrandColors.OilBlack
-	signText.TextScaled = true
-	signText.Font = Enum.Font.FredokaOne
-	signText.Parent = signGui
-
-	-- Floating prompt above sign
+	-- Floating prompt billboard above sign (legible at distance + on mobile)
 	local promptGui = Instance.new("BillboardGui")
-	promptGui.Size = UDim2.fromOffset(240, 70)
-	promptGui.StudsOffset = Vector3.new(0, 3.5, 0)
+	promptGui.Size = UDim2.fromOffset(280, 80)
+	promptGui.StudsOffset = Vector3.new(0, 4, 0)
 	promptGui.AlwaysOnTop = true
+	promptGui.MaxDistance = 200                  -- visible across the whole Hatchery
 	promptGui.Parent = sign
 	local promptText = Instance.new("TextLabel")
 	promptText.Size = UDim2.fromScale(1, 1)
 	promptText.BackgroundTransparency = 1
-	promptText.Text = "💰 Walk on pad to SELL"
-	promptText.TextColor3 = BrandColors.SteamCream
+	promptText.Text = "💰 PAWN FORGE"
+	promptText.TextColor3 = BrandColors.GoggleGold
 	promptText.TextStrokeTransparency = 0
 	promptText.TextStrokeColor3 = BrandColors.OilBlack
 	promptText.TextScaled = true
@@ -383,22 +409,43 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	scrapSensor.CanQuery = false
 	scrapSensor.Parent = scrapModel
 
+	-- BAB-FINDABILITY: same beacon + 4-sided sign treatment as the Pawn Forge,
+	-- but in Valve Red so the two pads are visually distinct from any angle.
+	local scrapBeacon = Instance.new("Part")
+	scrapBeacon.Name = "ScrapBeacon"
+	scrapBeacon.Shape = Enum.PartType.Cylinder
+	scrapBeacon.Size = Vector3.new(60, 1.0, 1.0)
+	scrapBeacon.Anchored = true
+	scrapBeacon.Material = Enum.Material.Neon
+	scrapBeacon.Color = BrandColors.ValveRed
+	scrapBeacon.Transparency = 0.45
+	scrapBeacon.CanCollide = false
+	scrapBeacon.CanTouch = false
+	scrapBeacon.CFrame = CFrame.new(scrapCenter + Vector3.new(0, 31, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	scrapBeacon.Parent = scrapModel
+	local scrapBeaconLight = Instance.new("PointLight")
+	scrapBeaconLight.Color = BrandColors.ValveRed
+	scrapBeaconLight.Brightness = 2.5
+	scrapBeaconLight.Range = 18
+	scrapBeaconLight.Parent = scrapBeacon
+
 	local scrapPost = Instance.new("Part")
 	scrapPost.Name = "Post"
 	scrapPost.Shape = Enum.PartType.Cylinder
-	scrapPost.Size = Vector3.new(3.5, 0.6, 0.6)
+	scrapPost.Size = Vector3.new(7.5, 0.6, 0.6)
 	scrapPost.Anchored = true
 	scrapPost.Material = Enum.Material.Metal
 	scrapPost.Color = BrandColors.IronworkCharcoal
 	scrapPost.CanCollide = false
 	scrapPost.CanTouch = false
-	scrapPost.CFrame = CFrame.new(scrapCenter + Vector3.new(0, 3.0, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	scrapPost.CFrame = CFrame.new(scrapCenter + Vector3.new(0, 5.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
 	scrapPost.Parent = scrapModel
 
+	-- 4-sided cube sign reading "⚙ SCRAP"
 	local scrapSign = Instance.new("Part")
 	scrapSign.Name = "Sign"
-	scrapSign.Size = Vector3.new(5.5, 2.6, 0.4)
-	scrapSign.Position = scrapCenter + Vector3.new(0, 5.2, 0)
+	scrapSign.Size = Vector3.new(6, 3.5, 6)
+	scrapSign.Position = scrapCenter + Vector3.new(0, 10.2, 0)
 	scrapSign.Anchored = true
 	scrapSign.Material = Enum.Material.Neon
 	scrapSign.Color = SCRAP_PAD_COLOR
@@ -406,33 +453,35 @@ local function buildPlot(player: Player, origin: Vector3): Model
 	scrapSign.CanTouch = false
 	scrapSign.Parent = scrapModel
 
-	local scrapSignGui = Instance.new("SurfaceGui")
-	scrapSignGui.Face = Enum.NormalId.Front
-	scrapSignGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	scrapSignGui.PixelsPerStud = 40
-	scrapSignGui.Parent = scrapSign
-
-	local scrapSignText = Instance.new("TextLabel")
-	scrapSignText.Size = UDim2.fromScale(1, 1)
-	scrapSignText.BackgroundTransparency = 0.25
-	scrapSignText.BackgroundColor3 = BrandColors.OilBlack
-	scrapSignText.Text = "SCRAP"
-	scrapSignText.TextColor3 = BrandColors.SteamCream
-	scrapSignText.TextStrokeTransparency = 0
-	scrapSignText.TextStrokeColor3 = BrandColors.OilBlack
-	scrapSignText.TextScaled = true
-	scrapSignText.Font = Enum.Font.FredokaOne
-	scrapSignText.Parent = scrapSignGui
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back, Enum.NormalId.Left, Enum.NormalId.Right } do
+		local sg = Instance.new("SurfaceGui")
+		sg.Face = face
+		sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		sg.PixelsPerStud = 50
+		sg.Parent = scrapSign
+		local txt = Instance.new("TextLabel")
+		txt.Size = UDim2.fromScale(1, 1)
+		txt.BackgroundTransparency = 0.2
+		txt.BackgroundColor3 = BrandColors.OilBlack
+		txt.Text = "⚙\nSCRAP"
+		txt.TextColor3 = BrandColors.SteamCream
+		txt.TextStrokeTransparency = 0
+		txt.TextStrokeColor3 = BrandColors.OilBlack
+		txt.TextScaled = true
+		txt.Font = Enum.Font.FredokaOne
+		txt.Parent = sg
+	end
 
 	local scrapPromptGui = Instance.new("BillboardGui")
-	scrapPromptGui.Size = UDim2.fromOffset(220, 60)
-	scrapPromptGui.StudsOffset = Vector3.new(0, 3.0, 0)
+	scrapPromptGui.Size = UDim2.fromOffset(240, 70)
+	scrapPromptGui.StudsOffset = Vector3.new(0, 3.5, 0)
 	scrapPromptGui.AlwaysOnTop = true
+	scrapPromptGui.MaxDistance = 200
 	scrapPromptGui.Parent = scrapSign
 	local scrapPromptText = Instance.new("TextLabel")
 	scrapPromptText.Size = UDim2.fromScale(1, 1)
 	scrapPromptText.BackgroundTransparency = 1
-	scrapPromptText.Text = "⚙ Cog Parts"
+	scrapPromptText.Text = "⚙ BLACK MARKET"
 	scrapPromptText.TextColor3 = BrandColors.SteamCream
 	scrapPromptText.TextStrokeTransparency = 0
 	scrapPromptText.TextStrokeColor3 = BrandColors.OilBlack
