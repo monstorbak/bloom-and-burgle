@@ -9,6 +9,8 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- load order races on first server boot.
 local DataStore = require(ServerScriptService:WaitForChild("DataStore") :: ModuleScript)
 local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript)
+local Services = require(ServerScriptService:WaitForChild("Services") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 DevMode.init()
 
@@ -59,19 +61,19 @@ local function snapshot(player: Player): { [string]: any }?
 	local rebirths = ls:FindFirstChild("Rebirths")
 	if not (cash and rebirths) then return nil end
 
-	-- Pull current plot state from PlantHandler (BAB-002). _G.PlantHandler is
-	-- assigned synchronously when PlantHandler.server.luau runs; on the very
-	-- first save during boot this could in theory race, so we tolerate nil.
+	-- ADR-1: pull current plot state from PlantHandler via Services registry.
+	-- Synchronous get — by snapshot() time the handler has long been registered.
 	local plot = nil
-	if _G.PlantHandler and _G.PlantHandler.snapshot then
-		local ok, result = pcall(_G.PlantHandler.snapshot, player)
+	local plantHandler = Services.get("PlantHandler")
+	if plantHandler and plantHandler.snapshot then
+		local ok, result = pcall(plantHandler.snapshot, player)
 		if ok then plot = result end
 	end
 
-	-- Pull stable from PlantHandler (or its replacement) when available.
+	-- ADR-1: pull stable via Services registry.
 	local stable = nil
-	if _G.PlantHandler and _G.PlantHandler.snapshotStable then
-		local ok, result = pcall(_G.PlantHandler.snapshotStable, player)
+	if plantHandler and plantHandler.snapshotStable then
+		local ok, result = pcall(plantHandler.snapshotStable, player)
 		if ok then stable = result end
 	end
 
@@ -94,28 +96,15 @@ local function snapshot(player: Player): { [string]: any }?
 	}
 end
 
-local function waitForGlobal(name: string, timeoutSeconds: number): any?
-	local deadline = os.clock() + timeoutSeconds
-	while os.clock() < deadline do
-		if _G[name] then return _G[name] end
-		task.wait()
-	end
-	return _G[name]
-end
-
 Players.PlayerAdded:Connect(function(player)
 	local data = DataStore.loadData(player)
 	loadedData[player.UserId] = data
 	buildLeaderstats(player, data)
 
-	-- BAB-002 load order: rebuild plot → replay plants. Both APIs are exposed
-	-- via _G by their respective server scripts; wait briefly for them in case
-	-- of script load ordering on first server boot.
-	-- BAB-002.1: If plotClaimed=true but plotSlotIndex is nil (legacy save from
-	-- before plotSlotIndex was tracked), still rebuild — PlotManager will pick
-	-- the first available slot.
+	-- ADR-1: load order via Services.await. Same 5s budget as the previous
+	-- _G poll, but wakes immediately on register instead of polling.
 	if data.plotClaimed then
-		local plotManager = waitForGlobal("PlotManager", 5)
+		local plotManager = Services.await("PlotManager", 5)
 		if plotManager and plotManager.rebuildFromSave then
 			local slotToTry = data.plotSlotIndex or -1  -- -1 signals "any"
 			local ok, err = pcall(plotManager.rebuildFromSave, player, slotToTry)
@@ -127,7 +116,7 @@ Players.PlayerAdded:Connect(function(player)
 		end
 	end
 
-	local plantHandler = waitForGlobal("PlantHandler", 5)
+	local plantHandler = Services.await("PlantHandler", 5)
 	if plantHandler and plantHandler.restore then
 		local ok, err = pcall(plantHandler.restore, player, data.plot, data.lastSeen)
 		if not ok then

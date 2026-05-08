@@ -7,7 +7,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local ServerScriptService = game:GetService("ServerScriptService")
 local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 local StealAttemptRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StealAttempt") :: RemoteEvent
 local StealNotificationRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("StealNotification") :: RemoteEvent
@@ -24,6 +27,12 @@ local STEAL_COOLDOWN_SEC = 5
 local lastSteal: { [number]: number } = {}
 
 StealAttemptRE.OnServerEvent:Connect(function(thief, planter)
+	-- ADR-2: rate limit. Existing 5s steal cooldown is per-target — this
+	-- caps the global rate per attacker. 0.2/s sustained (12/min), burst 3.
+	if not RateLimiter.tryConsume(thief.UserId, "Steal", 0.2, 3) then
+		RateLimiter.logViolation(thief, "Steal")
+		return
+	end
 	if typeof(planter) ~= "Instance" or not planter:IsA("BasePart") then return end
 	if not planter:HasTag("Planter") then return end
 	local ownerId = planter:GetAttribute("OwnerUserId")
@@ -90,6 +99,14 @@ StealAttemptRE.OnServerEvent:Connect(function(thief, planter)
 		StealNotificationRE:FireClient(owner, string.format("🚨 %s stole your %s%s!", thief.DisplayName, mutEmoji, species.emoji))
 		owner:SetAttribute("PlantsStolenFrom", (owner:GetAttribute("PlantsStolenFrom") or 0) + 1)
 	end
+
+	-- ADR-3: telemetry — steal events drive PvP balance + AntiTheft conversion
+	Telemetry.track("steal_succeeded", {
+		species = species.id,
+		payout = payout,
+		mutationMult = mutMult,
+		victimUserId = ownerId,
+	}, thief)
 end)
 
 Players.PlayerRemoving:Connect(function(p) lastSteal[p.UserId] = nil end)

@@ -86,9 +86,11 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	ribbon.CFrame = CFrame.new(origin) * CFrame.Angles(0, 0, math.rad(90))
 
 	-- ── Body (hidden until 0.5, scales 0.6→1.0) ──
+	-- Material: Metal per spec §1.5 (SmoothPlastic banned — reads as
+	-- "starter Roblox kit" against the steampunk identity).
 	local body = makePart("Body", model)
 	body.Shape = Enum.PartType.Ball
-	body.Material = Enum.Material.SmoothPlastic
+	body.Material = Enum.Material.Metal
 	body.Color = color
 	body.Size = Vector3.new(profile.bodyLen, profile.bodyHeight, profile.bodyLen)
 	body.Position = origin
@@ -97,7 +99,7 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	-- ── Head + goggle eye ──
 	local head = makePart("Head", model)
 	head.Shape = Enum.PartType.Ball
-	head.Material = Enum.Material.SmoothPlastic
+	head.Material = Enum.Material.Metal
 	head.Color = color
 	head.Size = Vector3.new(0.9, 0.9, 0.9)
 	head.Position = origin + Vector3.new(0, 0.4, profile.bodyLen * 0.5)
@@ -135,11 +137,13 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	end
 
 	-- ── Wings (winged only) ──
+	-- Material: Marble — gives a translucent veined look that reads as
+	-- ornate aether-tech rather than plastic. Spec §1.5 compliant.
 	if profile.hasWings then
 		for _, side in { -1, 1 } do
 			local wing = makePart("Wing" .. tostring(side + 2), model)  -- 1 or 3
 			wing.Shape = Enum.PartType.Block
-			wing.Material = Enum.Material.SmoothPlastic
+			wing.Material = Enum.Material.Marble
 			wing.Color = color:Lerp(Color3.fromRGB(255, 255, 255), 0.3)
 			wing.Size = Vector3.new(1.4, 0.08, 0.7)
 			wing.CFrame = CFrame.new(origin + Vector3.new(side * 0.8, 0.4, 0)) * CFrame.Angles(0, 0, math.rad(side * -25))
@@ -148,10 +152,12 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	end
 
 	-- ── Tail (quad/winged only) ──
+	-- Material: CorrodedMetal — slight oxidation matches the rugged critter
+	-- aesthetic; still reads as steampunk metal.
 	if profile.hasTail then
 		local tail = makePart("Tail", model)
 		tail.Shape = Enum.PartType.Cylinder
-		tail.Material = Enum.Material.SmoothPlastic
+		tail.Material = Enum.Material.CorrodedMetal
 		tail.Color = color:Lerp(Color3.fromRGB(0, 0, 0), 0.2)
 		tail.Size = Vector3.new(0.9, 0.3, 0.3)
 		tail.CFrame = CFrame.new(origin + Vector3.new(0, 0.0, -profile.bodyLen * 0.6)) * CFrame.Angles(0, 0, math.rad(90))
@@ -159,11 +165,12 @@ function PlantVisuals.create(planter: BasePart, species: any): Model
 	end
 
 	-- ── Multi-segment serpent (multi only) ──
+	-- Material: CorrodedMetal — armor-plated serpent segments.
 	if archetype == "multi" then
 		for i = 1, (profile.segments or 3) - 1 do
 			local seg = makePart("Segment" .. tostring(i), model)
 			seg.Shape = Enum.PartType.Ball
-			seg.Material = Enum.Material.SmoothPlastic
+			seg.Material = Enum.Material.CorrodedMetal
 			seg.Color = color
 			seg.Size = Vector3.new(0.8, 0.8, 0.8)
 			seg.Position = origin + Vector3.new(0, 0, -i * 0.7)

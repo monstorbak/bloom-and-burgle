@@ -17,6 +17,10 @@ local CollectionService = game:GetService("CollectionService")
 local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
 local ServerScriptService = game:GetService("ServerScriptService")
 local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
+-- ADR-1, ADR-2, ADR-3 wiring
+local Services = require(ServerScriptService:WaitForChild("Services") :: ModuleScript)
+local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 local SellPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("SellPlants") :: RemoteEvent
 local ScrapPlantsRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ScrapPlants") :: RemoteEvent
@@ -58,6 +62,14 @@ local function plantSeedAt(player: Player, planter: BasePart, speciesId: string,
 	local species = PlantData.get(speciesId)
 	if not species then return false end
 
+	-- ADR-2: rate limit. 9 pods/plot, allow 18 burst then 9/s sustained so
+	-- a legitimate "fill all 9 pods at once" tap-flurry succeeds; anything
+	-- beyond is a botted exploit.
+	if not RateLimiter.tryConsume(player.UserId, "PlantSeed", 9, 18) then
+		RateLimiter.logViolation(player, "PlantSeed", "species=" .. speciesId)
+		return false
+	end
+
 	if not freebie then
 		local ls = player:FindFirstChild("leaderstats")
 		if not ls then return false end
@@ -72,8 +84,16 @@ local function plantSeedAt(player: Player, planter: BasePart, speciesId: string,
 	planter:SetAttribute("PlantedAt", os.time())
 	planter:SetAttribute("GrowSeconds", species.growSeconds)
 
-	-- BAB-011: Build a real plant model (stem + leaves + flower) instead of a yellow box.
 	PlantVisuals.create(planter, species)
+
+	-- ADR-3: telemetry — pod_loaded
+	Telemetry.track("pod_loaded", {
+		species = species.id,
+		rarity = species.rarity,
+		freebie = freebie or false,
+		seedCost = freebie and 0 or species.seedCost,
+	}, player)
+
 	return true
 end
 
@@ -95,12 +115,17 @@ RunService.Heartbeat:Connect(function()
 
 		if progress >= 1.0 and not planter:GetAttribute("Ripe") then
 			-- BAB-011: Plants now STAY ripe (waiting for player to walk over).
-			-- Just mark them ripe; auto-harvest only happens via planter Touched (below)
-			-- or via offline catch-up (handled in PlantHandler.restore).
 			planter:SetAttribute("Ripe", true)
 			if plantModel and plantModel:IsA("Model") then
 				PlantVisuals.markRipe(plantModel, true)
 			end
+			-- ADR-3: telemetry — pod_ripened (engagement loop health metric)
+			local ownerId = planter:GetAttribute("OwnerUserId")
+			local owner = ownerId and Players:GetPlayerByUserId(ownerId)
+			Telemetry.track("pod_ripened", {
+				species = planter:GetAttribute("PlantedSpecies"),
+				growSeconds = planter:GetAttribute("GrowSeconds"),
+			}, owner)
 		end
 		
 		-- BAB-STEAMPUNK: pod aether window glows brighter as growth progresses,
@@ -125,12 +150,151 @@ end)
 -- both touch on a single walk-over, so we only want to actually run sell logic
 -- and fire the toast once per ~0.5s window).
 local sellCooldown: { [number]: number } = {}
+local scrapCooldown: { [number]: number } = {}
 
 -- Forward declaration: BAB-FINDABILITY 2 — the SellPad / ScrapPad handlers
--- auto-harvest any of the player's ripe pods before scanning inventory, so
--- the player only needs to walk on ONE pad. Defined later in the file
--- (after harvestPlanter) and captured via this upvalue.
+-- auto-harvest any of the player's ripe pods before scanning inventory.
 local harvestAllRipeForPlayer: ((Player) -> number)? = nil
+
+-- ADR-2 sanity caps. Single-fire payout above this threshold is logged as
+-- a violation but still pays out (legitimate luck on Mythic + Coal Drake +
+-- Celestial mutation isn't penalized). The cap exists to bound the blast
+-- radius of a save-pollution attack to ~$5M.
+local MAX_SELL_PAYOUT = 5000000
+local MAX_SCRAP_PAYOUT = 100000
+
+-- ADR-2/3 — single helper used by both .Touched and the proximity pulse.
+-- Returns total payout (or 0 if rate-limited / nothing to sell).
+local function _doSellInventory(player: Player, source: string): number
+	-- ADR-2: rate limit on sustained sell rate. 0.25/s sustained (15/min)
+	-- with burst of 4 — accommodates legitimate spam-walks during a Mythic
+	-- harvest moment but caps a botted exploit.
+	if not RateLimiter.tryConsume(player.UserId, "Sell", 0.25, 4) then
+		RateLimiter.logViolation(player, "Sell", "source=" .. source)
+		return 0
+	end
+
+	if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
+
+	local inv = getInv(player)
+	local total = 0
+	local soldCount = 0
+	local mutationCount = 0
+	local mythicSold = false
+	for key, count in inv do
+		if count <= 0 then continue end
+		local sep = string.find(key, ":") or 0
+		local sId = string.sub(key, 1, sep - 1)
+		local mId = string.sub(key, sep + 1)
+		local spec = PlantData.get(sId)
+		if not spec then continue end
+		local mult = 1
+		if mId ~= "" then
+			for _, m in PlantData.MUTATIONS do
+				if m.id == mId then mult = m.multiplier; mutationCount += count; break end
+			end
+		end
+		if spec.rarity == "Mythic" then mythicSold = true end
+		total += count * spec.baseValue * mult
+		soldCount += count
+		inv[key] = 0
+	end
+	if total <= 0 then return 0 end
+
+	local cashMult = player:GetAttribute("CashMultiplier") or 1
+	total = math.floor(total * cashMult)
+
+	-- ADR-2: payout sanity cap. Log violation but pay out clamped value so
+	-- legitimate big sells survive — only attackers see the clamp.
+	if total > MAX_SELL_PAYOUT then
+		RateLimiter.logViolation(player, "Sell.payout_cap", string.format("requested=%d clamped=%d", total, MAX_SELL_PAYOUT))
+		total = MAX_SELL_PAYOUT
+	end
+
+	local ls = player:FindFirstChild("leaderstats")
+	if ls then
+		local cash = ls:FindFirstChild("Cash") :: IntValue?
+		if cash then cash.Value = cash.Value + total end
+	end
+	local lifetime = (player:GetAttribute("LifetimeCash") or 0) + total
+	player:SetAttribute("LifetimeCash", lifetime)
+	SellPlantsRE:FireClient(player, total)
+
+	-- ADR-3: telemetry — sell_payout
+	Telemetry.track("sell_payout", {
+		amount = total,
+		count = soldCount,
+		mutations = mutationCount,
+		mythic = mythicSold,
+		cashMult = cashMult,
+		source = source,  -- "touched" | "proximity"
+	}, player)
+
+	return total
+end
+
+local function _doScrapInventory(player: Player, source: string): (number, number)
+	if not RateLimiter.tryConsume(player.UserId, "Scrap", 0.25, 4) then
+		RateLimiter.logViolation(player, "Scrap", "source=" .. source)
+		return 0, 0
+	end
+	if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
+	local inv = getInv(player)
+	local totalCp = 0
+	local skipped = 0
+	local scrappedCount = 0
+	for key, count in inv do
+		if count <= 0 then continue end
+		local sep = string.find(key, ":") or 0
+		local sId = string.sub(key, 1, sep - 1)
+		local spec = PlantData.get(sId)
+		if not spec then continue end
+		if spec.tag == "Sacred" then
+			skipped += count
+			continue
+		end
+		totalCp += count * spec.scrapValue
+		scrappedCount += count
+		inv[key] = 0
+	end
+
+	if totalCp > MAX_SCRAP_PAYOUT then
+		RateLimiter.logViolation(player, "Scrap.payout_cap", string.format("requested=%d clamped=%d", totalCp, MAX_SCRAP_PAYOUT))
+		totalCp = MAX_SCRAP_PAYOUT
+	end
+
+	if totalCp > 0 then
+		player:SetAttribute("CogParts", (player:GetAttribute("CogParts") or 0) + totalCp)
+	end
+	if totalCp > 0 or skipped > 0 then
+		ScrapPlantsRE:FireClient(player, totalCp, skipped)
+	end
+
+	-- ADR-3: telemetry — scrap_payout (always emit so we see "Sacred-skipped" funnel)
+	Telemetry.track("scrap_payout", {
+		amount = totalCp,
+		count = scrappedCount,
+		sacredSkipped = skipped,
+		source = source,
+	}, player)
+
+	return totalCp, skipped
+end
+
+-- ADR-2: helper to gate the per-pad cooldown. Both Touched and the
+-- proximity pulse share these cooldown tables to prevent double-fires.
+local function _checkSellCooldown(uid: number): boolean
+	local now = os.clock()
+	if sellCooldown[uid] and now - sellCooldown[uid] < 0.5 then return false end
+	sellCooldown[uid] = now
+	return true
+end
+local function _checkScrapCooldown(uid: number): boolean
+	local now = os.clock()
+	if scrapCooldown[uid] and now - scrapCooldown[uid] < 0.5 then return false end
+	scrapCooldown[uid] = now
+	return true
+end
 
 -- Wire SellPad on a per-instance basis (handles plots created mid-game)
 local function wireSellPad(sellPad: Instance)
@@ -143,56 +307,9 @@ local function wireSellPad(sellPad: Instance)
 		if not character then return end
 		local player = Players:GetPlayerFromCharacter(character)
 		if not player then return end
-		if sellPad:GetAttribute("OwnerUserId") ~= player.UserId then
-			-- print(string.format("[BAB-DBG] sell pad touched by non-owner %d", player.UserId))
-			return
-		end
-		print(string.format("[BAB-DBG] sell pad TOUCHED by %s", player.Name))
-
-		local now = os.clock()
-		if sellCooldown[player.UserId] and now - sellCooldown[player.UserId] < 0.5 then return end
-		sellCooldown[player.UserId] = now
-
-		-- BAB-FINDABILITY 2: auto-harvest any ripe pods first so the player
-		-- doesn't have to walk pod-by-pod. One walk = harvest + sell.
-		if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
-
-		local inv = getInv(player)
-		local total = 0
-		local soldDetails: { [string]: number } = {}
-		for key, count in inv do
-			if count <= 0 then continue end
-			local sep = string.find(key, ":") or 0
-			local sId = string.sub(key, 1, sep - 1)
-			local mId = string.sub(key, sep + 1)
-			local spec = PlantData.get(sId)
-			if not spec then continue end
-			local mult = 1
-			if mId ~= "" then
-				for _, m in PlantData.MUTATIONS do
-					if m.id == mId then mult = m.multiplier; break end
-				end
-			end
-			local subtotal = count * spec.baseValue * mult
-			total += subtotal
-			soldDetails[key] = count
-			inv[key] = 0
-		end
-		if total <= 0 then return end
-
-		local cashMult = player:GetAttribute("CashMultiplier") or 1
-		total = math.floor(total * cashMult)
-		local ls = player:FindFirstChild("leaderstats")
-		if ls then
-			local cash = ls:FindFirstChild("Cash") :: IntValue?
-			if cash then
-				cash.Value = cash.Value + total
-			end
-		end
-		-- Track lifetime earnings (used for shop unlocks)
-		local lifetime = (player:GetAttribute("LifetimeCash") or 0) + total
-		player:SetAttribute("LifetimeCash", lifetime)
-		SellPlantsRE:FireClient(player, total)
+		if sellPad:GetAttribute("OwnerUserId") ~= player.UserId then return end
+		if not _checkSellCooldown(player.UserId) then return end
+		_doSellInventory(player, "touched")
 	end)
 end
 
@@ -200,11 +317,6 @@ for _, sellPad in CollectionService:GetTagged("SellPad") do wireSellPad(sellPad)
 CollectionService:GetInstanceAddedSignal("SellPad"):Connect(wireSellPad)
 
 -- ── ScrapPad wiring (BAB-STEAMPUNK §9) ─────────────────────────────
--- Walk-on pad that converts inventory into Cog Parts (secondary currency
--- used for upgrades). Sacred-tagged species are skipped (cannot be scrapped).
--- Uses the same per-player debounce as the sell pad.
-local scrapCooldown: { [number]: number } = {}
-
 local function wireScrapPad(scrapPad: Instance)
 	if not scrapPad:IsA("BasePart") then return end
 	if scrapPad:GetAttribute("WiredScrap") then return end
@@ -215,43 +327,8 @@ local function wireScrapPad(scrapPad: Instance)
 		local player = Players:GetPlayerFromCharacter(character)
 		if not player then return end
 		if scrapPad:GetAttribute("OwnerUserId") ~= player.UserId then return end
-
-		local now = os.clock()
-		if scrapCooldown[player.UserId] and now - scrapCooldown[player.UserId] < 0.5 then return end
-		scrapCooldown[player.UserId] = now
-
-		-- BAB-FINDABILITY 2: same single-walk UX as sell pad — harvest first
-		-- then scrap. Player only needs to walk on one pad.
-		if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
-
-		local inv = getInv(player)
-		local totalCp = 0
-		local skipped = 0
-		for key, count in inv do
-			if count <= 0 then continue end
-			local sep = string.find(key, ":") or 0
-			local sId = string.sub(key, 1, sep - 1)
-			local spec = PlantData.get(sId)
-			if not spec then continue end
-			-- Sacred species can't be scrapped — skip and leave in inventory.
-			if spec.tag == "Sacred" then
-				skipped += count
-				continue
-			end
-			local subtotal = count * spec.scrapValue
-			totalCp += subtotal
-			inv[key] = 0
-		end
-		if totalCp <= 0 then
-			-- Still notify client so they get a "Sacred — can't scrap" toast
-			-- (client-side sees scrapped=0, skipped>0 → shows the right copy).
-			ScrapPlantsRE:FireClient(player, 0, skipped)
-			return
-		end
-
-		local newCp = (player:GetAttribute("CogParts") or 0) + totalCp
-		player:SetAttribute("CogParts", newCp)
-		ScrapPlantsRE:FireClient(player, totalCp, skipped)
+		if not _checkScrapCooldown(player.UserId) then return end
+		_doScrapInventory(player, "touched")
 	end)
 end
 
@@ -274,9 +351,9 @@ local function isInsidePart(point: Vector3, part: BasePart): boolean
 		and math.abs(local_p.Z) <= half.Z
 end
 
--- We re-fire .Touched on the pad with the player's HRP as the "hit" — same
--- handler runs, so all the cooldown / owner-check / harvest+sell logic
--- applies. (sellPad.Touched is wired with a closure that handles everything.)
+-- 4Hz pulse: walks every player against every owned sell+scrap pad and
+-- fires the same _doSellInventory / _doScrapInventory helpers so all the
+-- rate-limit, payout-cap, and telemetry logic applies uniformly.
 local function pulseProximity()
 	for _, player in Players:GetPlayers() do
 		local char = player.Character
@@ -284,85 +361,22 @@ local function pulseProximity()
 		local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not hrp then continue end
 		local pos = hrp.Position
-		-- Sell pads
+
 		for _, pad in CollectionService:GetTagged("SellPad") do
 			if not pad:IsA("BasePart") then continue end
 			if pad:GetAttribute("OwnerUserId") ~= player.UserId then continue end
-			if isInsidePart(pos, pad) then
-				-- Fire the same Touched handler by triggering Touched event.
-				-- We can't call the listener directly (it's anonymous in
-				-- wireSellPad), so we set HRP CFrame to itself which will
-				-- cause Roblox to re-evaluate touches. As a more reliable
-				-- fallback we just call the harvest+sell logic inline here.
-				local now = os.clock()
-				if not (sellCooldown[player.UserId] and now - sellCooldown[player.UserId] < 0.5) then
-					sellCooldown[player.UserId] = now
-					if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
-					-- Inline sell — same logic as wireSellPad
-					local inv = getInv(player)
-					local total = 0
-					for key, count in inv do
-						if count <= 0 then continue end
-						local sep = string.find(key, ":") or 0
-						local sId = string.sub(key, 1, sep - 1)
-						local mId = string.sub(key, sep + 1)
-						local spec = PlantData.get(sId)
-						if not spec then continue end
-						local mult = 1
-						if mId ~= "" then
-							for _, m in PlantData.MUTATIONS do
-								if m.id == mId then mult = m.multiplier; break end
-							end
-						end
-						total += count * spec.baseValue * mult
-						inv[key] = 0
-					end
-					if total > 0 then
-						local cashMult = player:GetAttribute("CashMultiplier") or 1
-						total = math.floor(total * cashMult)
-						local ls = player:FindFirstChild("leaderstats")
-						if ls then
-							local cash = ls:FindFirstChild("Cash") :: IntValue?
-							if cash then cash.Value = cash.Value + total end
-						end
-						local lifetime = (player:GetAttribute("LifetimeCash") or 0) + total
-						player:SetAttribute("LifetimeCash", lifetime)
-						SellPlantsRE:FireClient(player, total)
-					end
-					break  -- only fire once per player per tick
-				end
+			if isInsidePart(pos, pad) and _checkSellCooldown(player.UserId) then
+				_doSellInventory(player, "proximity")
+				break
 			end
 		end
-		-- Scrap pads
+
 		for _, pad in CollectionService:GetTagged("ScrapPad") do
 			if not pad:IsA("BasePart") then continue end
 			if pad:GetAttribute("OwnerUserId") ~= player.UserId then continue end
-			if isInsidePart(pos, pad) then
-				local now = os.clock()
-				if not (scrapCooldown[player.UserId] and now - scrapCooldown[player.UserId] < 0.5) then
-					scrapCooldown[player.UserId] = now
-					if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
-					local inv = getInv(player)
-					local totalCp = 0
-					local skipped = 0
-					for key, count in inv do
-						if count <= 0 then continue end
-						local sep = string.find(key, ":") or 0
-						local sId = string.sub(key, 1, sep - 1)
-						local spec = PlantData.get(sId)
-						if not spec then continue end
-						if spec.tag == "Sacred" then skipped += count; continue end
-						totalCp += count * spec.scrapValue
-						inv[key] = 0
-					end
-					if totalCp > 0 or skipped > 0 then
-						if totalCp > 0 then
-							player:SetAttribute("CogParts", (player:GetAttribute("CogParts") or 0) + totalCp)
-						end
-						ScrapPlantsRE:FireClient(player, totalCp, skipped)
-					end
-					break
-				end
+			if isInsidePart(pos, pad) and _checkScrapCooldown(player.UserId) then
+				_doScrapInventory(player, "proximity")
+				break
 			end
 		end
 	end
@@ -617,4 +631,7 @@ function API.restore(player: Player, plotData: { [string]: any }?, lastSeen: num
 	end
 end
 
+-- ADR-1: typed Services registry (canonical). _G kept for one release as a
+-- backward-compat shim for the dbg toolkit and any out-of-tree consumers.
+Services.register("PlantHandler", API)
 _G.PlantHandler = API

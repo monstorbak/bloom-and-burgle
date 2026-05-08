@@ -9,6 +9,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ClassData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ClassData"))
 local PickClassRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PickClass") :: RemoteEvent
+local ServerScriptService = game:GetService("ServerScriptService")
+local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 local function applyClassToCharacter(player: Player, classId: string)
 	local spec = ClassData.get(classId)
@@ -23,6 +26,12 @@ local function applyClassToCharacter(player: Player, classId: string)
 end
 
 PickClassRE.OnServerEvent:Connect(function(player, classId)
+	-- ADR-2: rate limit. Once-per-session legitimate use; anything more is
+	-- spam from a confused client or an attempted respec exploit.
+	if not RateLimiter.tryConsume(player.UserId, "PickClass", 0.5, 2) then
+		RateLimiter.logViolation(player, "PickClass")
+		return
+	end
 	if typeof(classId) ~= "string" then return end
 	local spec = ClassData.get(classId)
 	if not spec then return end
@@ -31,6 +40,12 @@ PickClassRE.OnServerEvent:Connect(function(player, classId)
 	player:SetAttribute("Class", classId)
 	applyClassToCharacter(player, classId)
 	print(string.format("[BAB-LIFE] %s picked class %s", player.Name, classId))
+	-- ADR-3: telemetry — class_picked (drives class-balance + onboarding flow)
+	Telemetry.track("class_picked", {
+		class = classId,
+		hp = spec.combat.hp,
+		damageType = spec.combat.damageType,
+	}, player)
 end)
 
 -- On respawn, re-apply class baselines so HP/speed survive death.

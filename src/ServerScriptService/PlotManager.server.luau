@@ -635,6 +635,10 @@ function API.rebuildFromSave(player: Player, savedSlot: number): Model?
 	return plot
 end
 
+-- ADR-1: typed Services registry (canonical). _G kept for one release as a
+-- backward-compat shim for the dbg toolkit and any out-of-tree consumers.
+local Services = require(game:GetService("ServerScriptService"):WaitForChild("Services") :: ModuleScript)
+Services.register("PlotManager", API)
 _G.PlotManager = API
 
 -- ReturnToPlot RemoteEvent: client-requested teleport back to player's plot.

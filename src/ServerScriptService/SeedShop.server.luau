@@ -9,6 +9,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
 local ServerScriptService = game:GetService("ServerScriptService")
 local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
+local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 local OpenShopRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("OpenShop") :: RemoteEvent
 local BuySeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuySeed") :: RemoteEvent
@@ -162,11 +164,21 @@ OpenShopRE.OnServerEvent:Connect(function(player)
 	OpenShopRE:FireClient(player)
 end)
 
--- Buy seed: validate, deduct cash, add to stash
+-- Buy seed: validate, deduct cash, add to stash. Hardened per ADR-2.
 BuySeedRE.OnServerEvent:Connect(function(player, speciesId, qty)
+	-- ADR-2: rate limit. 4/s sustained, burst 8 — covers a panicked
+	-- "buy 5 quickly" tap-flurry without allowing botted spam.
+	if not RateLimiter.tryConsume(player.UserId, "BuySeed", 4, 8) then
+		RateLimiter.logViolation(player, "BuySeed")
+		return
+	end
+
 	if typeof(speciesId) ~= "string" then return end
 	if typeof(qty) ~= "number" then qty = 1 end
-	qty = math.clamp(math.floor(qty), 1, 100)
+	-- ADR-2: tightened clamp from 1..100 to 1..10 — no legitimate UX flow
+	-- buys 100 of a species in one event, and a 100x exploit-multiplier on
+	-- a single RPC is dangerous.
+	qty = math.clamp(math.floor(qty), 1, 10)
 	local species = PlantData.get(speciesId)
 	if not species then return end
 
@@ -184,12 +196,24 @@ BuySeedRE.OnServerEvent:Connect(function(player, speciesId, qty)
 
 	local stash = getStash(player)
 	stash[speciesId] = (stash[speciesId] or 0) + qty
-	-- Sync to client via attribute (simple, no extra RE)
 	player:SetAttribute("Stash_" .. speciesId, stash[speciesId])
+
+	-- ADR-3: telemetry — egg purchase (drives Egg Emporium funnel + price tuning)
+	Telemetry.track("egg_purchased", {
+		species = speciesId,
+		qty = qty,
+		spent = total,
+		cashAfter = cash.Value,
+	}, player)
 end)
 
 -- PlantInPlot: client says "use one of my stashed seeds in this empty planter"
 PlantInPlotRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
+	-- ADR-2: rate limit. 9/s sustained (one per pod), burst 18.
+	if not RateLimiter.tryConsume(player.UserId, "PlantInPlot", 9, 18) then
+		RateLimiter.logViolation(player, "PlantInPlot")
+		return
+	end
 	if typeof(planterRef) ~= "Instance" or not planterRef:IsA("BasePart") then return end
 	if not planterRef:HasTag("Planter") then return end
 	if planterRef:GetAttribute("OwnerUserId") ~= player.UserId then return end
