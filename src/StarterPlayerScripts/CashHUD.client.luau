@@ -93,7 +93,7 @@ cashLabel.TextScaled = true
 cashLabel.Parent = cashFrame
 
 -- ── Seed inventory chip (under cash) ──────────────────────────────────
-local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 
 local seedFrame = Instance.new("Frame")
 seedFrame.Name = "SeedInventory"
@@ -137,7 +137,7 @@ local function refreshSeeds()
 	end
 	local totalSeeds = 0
 	local i = 0
-	for _, species in PlantData.list() do
+	for _, species in CritterData.list() do
 		local count = player:GetAttribute("Stash_" .. species.id) or 0
 		if count > 0 then
 			i += 1

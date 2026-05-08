@@ -6,9 +6,9 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 local ServerScriptService = game:GetService("ServerScriptService")
-local PlantVisuals = require(ServerScriptService:WaitForChild("PlantVisuals") :: ModuleScript)
+local CritterVisuals = require(ServerScriptService:WaitForChild("CritterVisuals") :: ModuleScript)
 local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
@@ -179,7 +179,7 @@ BuySeedRE.OnServerEvent:Connect(function(player, speciesId, qty)
 	-- buys 100 of a species in one event, and a 100x exploit-multiplier on
 	-- a single RPC is dangerous.
 	qty = math.clamp(math.floor(qty), 1, 10)
-	local species = PlantData.get(speciesId)
+	local species = CritterData.get(speciesId)
 	if not species then return end
 
 	-- Unlock check
@@ -227,7 +227,7 @@ PlantInPlotRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
 
 	-- Reuse PlantHandler via the existing PlantSeed RemoteEvent path,
 	-- but skip cost (we already deducted at buy time). Simpler: directly mutate planter here.
-	local species = PlantData.get(speciesId)
+	local species = CritterData.get(speciesId)
 	if not species then return end
 	planterRef:SetAttribute("IsEmpty", false)
 	planterRef:SetAttribute("PlantedSpecies", species.id)
@@ -235,7 +235,7 @@ PlantInPlotRE.OnServerEvent:Connect(function(player, planterRef, speciesId)
 	planterRef:SetAttribute("GrowSeconds", species.growSeconds)
 
 	-- BAB-011: build a real plant model (stem + leaves + bud + bloom).
-	PlantVisuals.create(planterRef, species)
+	CritterVisuals.create(planterRef, species)
 
 	-- Hide the empty border (planted now)
 	local border = planterRef:FindFirstChild("EmptyBorder") :: BasePart?

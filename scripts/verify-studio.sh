@@ -9,8 +9,25 @@ LUA_CHECK=$(python3 <<'PYEOF'
 expected = [
     ("game.ServerScriptService.DataStore", "ModuleScript"),
     ("game.ServerScriptService.DevMode", "ModuleScript"),
+    # P1.2 / ADR-5: PlantVisuals → CritterVisuals. Both ship for one
+    # release: CritterVisuals is canonical, PlantVisuals is a 1-line shim.
+    ("game.ServerScriptService.CritterVisuals", "ModuleScript"),
     ("game.ServerScriptService.PlantVisuals", "ModuleScript"),
-    ("game.ServerScriptService.PlantHandler", "Script"),
+    ("game.ReplicatedStorage.Modules.CritterData", "ModuleScript"),
+    ("game.ReplicatedStorage.Modules.PlantData", "ModuleScript"),
+    # P1.1 / ADR-4: PlantHandler split into Critter/* modules. Only the
+    # .server.luau scripts have runtime instances; the .luau modules are
+    # ModuleScripts under the Critter Folder.
+    ("game.ServerScriptService.Critter", "Folder"),
+    ("game.ServerScriptService.Critter.CritterRegistry", "ModuleScript"),
+    ("game.ServerScriptService.Critter.HarvestFlow", "ModuleScript"),
+    ("game.ServerScriptService.Critter.EconomyPad", "ModuleScript"),
+    ("game.ServerScriptService.Critter.Persistence", "ModuleScript"),
+    ("game.ServerScriptService.Critter.GrowLoop", "Script"),
+    ("game.ServerScriptService.Critter.SellPad", "Script"),
+    ("game.ServerScriptService.Critter.ScrapPad", "Script"),
+    ("game.ServerScriptService.Critter.ProximityPulse", "Script"),
+    ("game.ServerScriptService.Critter.PlantingFlow", "Script"),
     ("game.ServerScriptService.PlotManager", "Script"),
     ("game.ServerScriptService.SeedShop", "Script"),
     ("game.ServerScriptService.StealHandler", "Script"),
@@ -22,6 +39,9 @@ expected = [
     ("game.StarterPlayer.StarterPlayerScripts.SeedShopUI", "LocalScript"),
     ("game.StarterPlayer.StarterPlayerScripts.PlanterUI", "LocalScript"),
     ("game.StarterPlayer.StarterPlayerScripts.StealUI", "LocalScript"),
+    # P1.3 / ADR-6: Fusion adoption + HarvestModal as the precedent.
+    ("game.ReplicatedStorage.Modules.Fusion", "ModuleScript"),
+    ("game.StarterPlayer.StarterPlayerScripts.HarvestModal", "LocalScript"),
 ]
 lines = ["local out = {}"]
 for sp, cls in expected:

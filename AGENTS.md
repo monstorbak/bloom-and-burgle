@@ -52,13 +52,25 @@ git add -A && git commit -m "feat(BAB-NNN): <summary>" && git push
 ```bash
 git pull
 ./scripts/build.sh                          # rojo build to BloomAndBurgle.rbxlx
-# open in Studio (or use push-to-studio.sh for hot-patching active session)
+# open in Studio (or use push-to-studio.sh for hot-patching — see "Sync paths" below)
 # test via execute_luau / start_stop_play / get_console_output (Studio MCP)
 # if pass:
 ./scripts/publish.sh
 # WhatsApp: "[BAB-NNN] live: <commit>"
 # if fail: WhatsApp + commit repro to AGENT_COORDINATION/triage/
 ```
+
+### Sync paths — which tool, when
+
+The repo has three ways code reaches Studio. Use the right one:
+
+| Tool | When | Notes |
+|---|---|---|
+| **`rojo serve`** | **Edit-mode dev loop (canonical).** | Live file-watch sync. Handles `.model.json` Instance definitions correctly. Run from a separate terminal: `rojo serve default.project.json`, then "Connect" in the Rojo Studio plugin. |
+| **`scripts/push-to-studio.sh`** | One-off hot-patch of a single script in an Edit-mode Studio you don't want to disconnect | Destroys + recreates the target Instance. Refuses to push server `Script`s during Play (severs RemoteEvent connections). Pass `--force` only if you accept that. Does NOT pick up `.model.json` changes. |
+| **`scripts/build.sh` + open `.rbxlx`** | First-time setup, full rebuild, or anything touching `.model.json` | Heavy; close Studio first. |
+
+`dbg eval` is for runtime introspection during a Studio session — never the source of truth. Anything you create via `dbg eval` must be committed back to a `.model.json` (or equivalent) before merge, otherwise it disappears on the next Studio restart.
 
 ## Studio MCP cheatsheet (Mac only)
 

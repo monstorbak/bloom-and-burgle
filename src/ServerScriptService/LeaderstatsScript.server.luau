@@ -61,19 +61,21 @@ local function snapshot(player: Player): { [string]: any }?
 	local rebirths = ls:FindFirstChild("Rebirths")
 	if not (cash and rebirths) then return nil end
 
-	-- ADR-1: pull current plot state from PlantHandler via Services registry.
+	-- ADR-1: pull current plot state via Services registry.
+	-- ADR-5 (P1.2): CritterHandler is the canonical name; PlantHandler is
+	-- a one-release alias retained for backward compat.
 	-- Synchronous get — by snapshot() time the handler has long been registered.
 	local plot = nil
-	local plantHandler = Services.get("PlantHandler")
-	if plantHandler and plantHandler.snapshot then
-		local ok, result = pcall(plantHandler.snapshot, player)
+	local critterHandler = Services.get("CritterHandler") or Services.get("PlantHandler")
+	if critterHandler and critterHandler.snapshot then
+		local ok, result = pcall(critterHandler.snapshot, player)
 		if ok then plot = result end
 	end
 
-	-- ADR-1: pull stable via Services registry.
+	-- Stable snapshot is optional — handler may not implement it.
 	local stable = nil
-	if plantHandler and plantHandler.snapshotStable then
-		local ok, result = pcall(plantHandler.snapshotStable, player)
+	if critterHandler and critterHandler.snapshotStable then
+		local ok, result = pcall(critterHandler.snapshotStable, player)
 		if ok then stable = result end
 	end
 
@@ -116,11 +118,13 @@ Players.PlayerAdded:Connect(function(player)
 		end
 	end
 
-	local plantHandler = Services.await("PlantHandler", 5)
-	if plantHandler and plantHandler.restore then
-		local ok, err = pcall(plantHandler.restore, player, data.plot, data.lastSeen)
+	-- ADR-5 (P1.2): prefer CritterHandler, fall back to legacy PlantHandler.
+	-- Both names register the same API table in Persistence.luau.
+	local critterHandler = Services.await("CritterHandler", 5) or Services.get("PlantHandler")
+	if critterHandler and critterHandler.restore then
+		local ok, err = pcall(critterHandler.restore, player, data.plot, data.lastSeen)
 		if not ok then
-			warn(("[Leaderstats] PlantHandler.restore failed for %s: %s"):format(player.Name, tostring(err)))
+			warn(("[Leaderstats] CritterHandler.restore failed for %s: %s"):format(player.Name, tostring(err)))
 		end
 	end
 

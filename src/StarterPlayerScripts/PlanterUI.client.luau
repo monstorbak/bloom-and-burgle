@@ -5,7 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
-local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 
 local PlantInPlotRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PlantInPlot") :: RemoteEvent
 
@@ -29,7 +29,7 @@ local function showPicker(planter: BasePart)
 	closePicker()
 	-- Build the list of seeds the player has in stash, plus a "buy more" hint
 	local stashItems: { { id: string, count: number } } = {}
-	for _, species in ipairs(PlantData.list()) do
+	for _, species in ipairs(CritterData.list()) do
 		local count = player:GetAttribute("Stash_" .. species.id) or 0
 		if count > 0 then
 			table.insert(stashItems, { id = species.id, count = count })
@@ -111,9 +111,9 @@ local function showPicker(planter: BasePart)
 	layout.Parent = scroll
 
 	for i, entry in ipairs(stashItems) do
-		local species = PlantData.get(entry.id)
+		local species = CritterData.get(entry.id)
 		if not species then continue end
-		local rcol = PlantData.rarityColor(species.rarity)
+		local rcol = CritterData.rarityColor(species.rarity)
 		local btn = Instance.new("TextButton")
 		btn.Size = UDim2.new(1, -10, 0, 70)
 		btn.LayoutOrder = i

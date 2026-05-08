@@ -12,10 +12,100 @@
 # This avoids the "phantom append" bug where multi_edit sometimes concatenated
 # new content onto stale source instead of replacing it, leading to scripts
 # that contained TWO copies of themselves with conflicting logic.
+#
+# ── P1.4 (Architecture Eval §8/§9) ──────────────────────────────────────────
+# Play-mode safety: this script destroys + recreates instances. During Play,
+# that severs every RemoteEvent / Heartbeat connection the live server-side
+# Script had open. The eval doc (Bloom&Burgle_Architecture_Eval.md §8/§9)
+# names `rojo serve` as the canonical Edit-time sync; this tool is for
+# hot-patching only.
+#
+#   - In Edit mode: behaves as before.
+#   - In Play mode + Script (server) target: refuses with a pointer to
+#     `rojo serve` unless --force is passed.
+#   - In Play mode + LocalScript target: warns but proceeds (client scripts
+#     get re-instanced cleanly on the next character spawn).
+#   - In Play mode + ModuleScript target: proceeds silently (consumers cache
+#     their require() result, so the change won't take effect until the next
+#     Play session anyway — but no connections are severed).
+#   - If the bridge is unreachable for the probe: refuses (fail-closed) unless
+#     --force is passed.
+#
+# Override: pass `--force` as the first arg to bypass the safety. Use ONLY
+# for the rare case where you genuinely want to live-patch a server script
+# during Play and accept the connection-loss consequences.
+#
+# Test override: --skip-probe assumes Edit mode without contacting the bridge.
+# Used only by scripts/push-to-studio.test.sh.
 
 set -uo pipefail
 
 BRIDGE="${ROBLOX_MCP_BRIDGE:-http://127.0.0.1:7878}"
+
+FORCE=0
+SKIP_PROBE=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --force) FORCE=1; shift ;;
+        --skip-probe) SKIP_PROBE=1; shift ;;
+        *) break ;;
+    esac
+done
+
+# ── Play-mode probe ────────────────────────────────────────────────────────
+# One-shot RunService:IsRunning() check. Cached for the rest of the run.
+# IS_PLAY values: "0" (Edit) | "1" (Play) | "?" (probe failed).
+probe_play_mode() {
+    local probe_code='return game:GetService("RunService"):IsRunning() and "play" or "edit"'
+    local payload
+    payload=$(jq -n --arg c "$probe_code" '{method:"tools/call",params:{name:"execute_luau",arguments:{code:$c}},timeoutMs:5000}')
+    local resp
+    resp=$(curl -sS --max-time 6 -X POST "$BRIDGE/rpc" -H "Content-Type: application/json" -d "$payload" 2>/dev/null)
+    if [ -z "$resp" ]; then
+        echo "?"
+        return
+    fi
+    local mode
+    mode=$(echo "$resp" | python3 -c "import sys,json
+try:
+    d=json.load(sys.stdin)
+    print(d.get('result',{}).get('content',[{}])[0].get('text','?'))
+except Exception:
+    print('?')" 2>/dev/null)
+    case "$mode" in
+        play) echo "1" ;;
+        edit) echo "0" ;;
+        *) echo "?" ;;
+    esac
+}
+
+if [ "$SKIP_PROBE" = "1" ]; then
+    IS_PLAY="0"
+else
+    IS_PLAY="$(probe_play_mode)"
+fi
+
+case "$IS_PLAY" in
+    0) ;; # Edit mode — proceed silently.
+    1)
+        echo "🎮 Studio is in Play mode."
+        if [ "$FORCE" = "1" ]; then
+            echo "   --force passed; proceeding anyway. Server-script connections WILL be severed."
+        fi
+        ;;
+    \?)
+        if [ "$FORCE" = "1" ]; then
+            echo "⚠️  Studio Play-mode probe failed; --force passed, proceeding." >&2
+        else
+            echo "❌ Couldn't reach the Studio MCP bridge at $BRIDGE to verify Play state." >&2
+            echo "   Refusing to push (fail-closed). Options:" >&2
+            echo "   - Start Roblox Studio with the MCP bridge running." >&2
+            echo "   - Use 'rojo serve' for the dev loop instead (recommended)." >&2
+            echo "   - Re-run with --force to bypass the probe and push anyway." >&2
+            exit 3
+        fi
+        ;;
+esac
 
 push_one() {
     local local_path="$1"
@@ -25,6 +115,23 @@ push_one() {
     if [ ! -f "$local_path" ]; then
         echo "❌ missing local file: $local_path" >&2
         return 1
+    fi
+
+    # Play-mode guard: refuse server scripts unless --force.
+    if [ "$IS_PLAY" = "1" ] && [ "$FORCE" != "1" ]; then
+        case "$class_name" in
+            Script)
+                echo "  ❌ refusing to sync $studio_path during Play." >&2
+                echo "     Server Scripts can't be hot-reloaded — destroy+recreate severs every" >&2
+                echo "     RemoteEvent and Heartbeat connection the live server has open." >&2
+                echo "     Stop Play first, or use 'rojo serve' for the live-sync dev loop," >&2
+                echo "     or pass --force to bypass (you accept the consequences)." >&2
+                return 2
+                ;;
+            LocalScript)
+                echo "  ⚠️  syncing LocalScript $studio_path during Play; client connections may break on respawn."
+                ;;
+        esac
     fi
 
     local NEW_CONTENT
@@ -107,6 +214,7 @@ print(chr(10).join(lines))
     echo "  ✅ synced $studio_path (local=$EXPECTED studio=$STUDIO_SIZE)"
 }
 
+REFUSED=0
 while IFS=$'\n' read -r line; do
     [ -z "$line" ] && continue
     [[ "$line" =~ ^# ]] && continue
@@ -116,7 +224,16 @@ while IFS=$'\n' read -r line; do
     CLASS="${parts[4]:-}"
     if [ -z "$LOCAL" ] || [ -z "$STUDIO" ]; then continue; fi
     echo "→ $LOCAL → $STUDIO ($CLASS)"
-    push_one "$LOCAL" "$STUDIO" "$CLASS" || true
+    push_one "$LOCAL" "$STUDIO" "$CLASS"
+    rc=$?
+    if [ "$rc" = "2" ]; then
+        REFUSED=$((REFUSED + 1))
+    fi
 done
+
+if [ "$REFUSED" -gt 0 ]; then
+    echo "✋ done — $REFUSED file(s) refused (Play-mode + Script). Stop Play and re-run, or pass --force." >&2
+    exit 2
+fi
 
 echo "✨ done"
