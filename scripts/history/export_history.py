@@ -179,6 +179,14 @@ def render_event(d: dict) -> str | None:
 
 
 # ── Main ────────────────────────────────────────────────────────────
+def run(session: str | None = None, out: str = "Bloom&Burgle_ChatHistory.md") -> None:
+    """Programmatic entrypoint. Use this from append_history's fall-back path
+    instead of `main()` so we don't accidentally re-parse the caller's argv
+    (which may carry flags like `--quiet` that this script doesn't know)."""
+    repo_root = Path(__file__).resolve().parents[2]
+    _run_export(repo_root, session, out)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="session id (without .jsonl)")
@@ -190,15 +198,19 @@ def main():
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
+    _run_export(repo_root, args.session, args.out)
+
+
+def _run_export(repo_root: Path, session: str | None, out: str) -> None:
     project_dir = find_claude_project_dir(repo_root)
-    if args.session:
-        src = project_dir / f"{args.session}.jsonl"
+    if session:
+        src = project_dir / f"{session}.jsonl"
         if not src.is_file():
             sys.exit(f"no such session at {src}")
     else:
         src = latest_session(project_dir)
 
-    out_path = repo_root / args.out
+    out_path = repo_root / out
     print(f"[export_history] reading: {src}")
     print(f"[export_history] writing: {out_path}")
 
