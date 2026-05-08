@@ -11,7 +11,11 @@
       "Bash(./scripts/build.sh)",
       "Bash(rojo build:*)",
       "Bash(jq:*)",
-      "Bash(python3 -m json.tool)"
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 scripts/history/append_history.py:*)",
+      "Bash(python3 scripts/history/export_history.py:*)",
+      "Bash(./scripts/history/sync:*)",
+      "Bash(scripts/history/sync:*)"
     ]
   },
   "hooks": {
@@ -34,6 +38,17 @@
             "type": "command",
             "command": "f=\"${CLAUDE_TOOL_INPUT_file_path:-}\"; case \"$f\" in *.luau|*.lua) echo \"[bab] hint: edited $f — push to live Studio with: ./scripts/debug/dbg sync ${f#*/.claude/worktrees/*/}\" ;; esac",
             "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -x \"$r/scripts/history/sync\" ]; then \"$r/scripts/history/sync\" 2>&1 | sed 's/^/[bab-history] /' || true; fi",
+            "timeout": 10
           }
         ]
       }

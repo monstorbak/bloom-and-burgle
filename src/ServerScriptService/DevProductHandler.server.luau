@@ -7,6 +7,8 @@ local DataStoreService = game:GetService("DataStoreService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 local receiptStore = DataStoreService:GetDataStore("BloomAndBurgle_Receipts_v1")
 
@@ -102,5 +104,15 @@ MarketplaceService.ProcessReceipt = function(info)
 
 	-- Mark consumed
 	pcall(function() receiptStore:SetAsync(receiptKey, true) end)
+
+	-- ADR-3: telemetry — dev product purchase (drives ARPPU + price tuning)
+	Telemetry.track("dev_product_purchased", {
+		productId = info.ProductId,
+		productKey = key,
+		currencyType = tostring(info.CurrencyType),
+		currencySpent = info.CurrencySpent,
+		receiptId = info.PurchaseId,
+	}, player)
+
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end

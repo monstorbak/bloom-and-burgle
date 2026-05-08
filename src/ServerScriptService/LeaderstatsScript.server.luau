@@ -9,6 +9,8 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- load order races on first server boot.
 local DataStore = require(ServerScriptService:WaitForChild("DataStore") :: ModuleScript)
 local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript)
+local Services = require(ServerScriptService:WaitForChild("Services") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 DevMode.init()
 
@@ -43,6 +45,13 @@ local function buildLeaderstats(player: Player, data: { [string]: any })
 	player:SetAttribute("MutationsFound", data.mutationsFound or 0)
 	player:SetAttribute("LifetimeCash", data.lifetimeCash or 0)
 	player:SetAttribute("StarterPackGranted", data.starterPackGranted or false)
+	-- BAB-STEAMPUNK: class identity + secondary currency + stable capacity.
+	-- Class is nil until ClassPickerUI fires PickClass; HUD uses the attribute
+	-- to render the persistent badge in the top-left corner.
+	player:SetAttribute("Class", data.class)
+	player:SetAttribute("CogParts", data.cogParts or 0)
+	player:SetAttribute("StableCapacity", data.stableCapacity or 6)
+	player:SetAttribute("StableSize", data.stable and #data.stable or 0)
 end
 
 local function snapshot(player: Player): { [string]: any }?
@@ -52,13 +61,20 @@ local function snapshot(player: Player): { [string]: any }?
 	local rebirths = ls:FindFirstChild("Rebirths")
 	if not (cash and rebirths) then return nil end
 
-	-- Pull current plot state from PlantHandler (BAB-002). _G.PlantHandler is
-	-- assigned synchronously when PlantHandler.server.luau runs; on the very
-	-- first save during boot this could in theory race, so we tolerate nil.
+	-- ADR-1: pull current plot state from PlantHandler via Services registry.
+	-- Synchronous get — by snapshot() time the handler has long been registered.
 	local plot = nil
-	if _G.PlantHandler and _G.PlantHandler.snapshot then
-		local ok, result = pcall(_G.PlantHandler.snapshot, player)
+	local plantHandler = Services.get("PlantHandler")
+	if plantHandler and plantHandler.snapshot then
+		local ok, result = pcall(plantHandler.snapshot, player)
 		if ok then plot = result end
+	end
+
+	-- ADR-1: pull stable via Services registry.
+	local stable = nil
+	if plantHandler and plantHandler.snapshotStable then
+		local ok, result = pcall(plantHandler.snapshotStable, player)
+		if ok then stable = result end
 	end
 
 	return {
@@ -71,17 +87,13 @@ local function snapshot(player: Player): { [string]: any }?
 		mutationsFound = player:GetAttribute("MutationsFound") or 0,
 		lifetimeCash = player:GetAttribute("LifetimeCash") or 0,
 		starterPackGranted = player:GetAttribute("StarterPackGranted") or false,
+		-- BAB-STEAMPUNK
+		class = player:GetAttribute("Class"),
+		cogParts = player:GetAttribute("CogParts") or 0,
+		stableCapacity = player:GetAttribute("StableCapacity") or 6,
+		stable = stable,
 		plot = plot,
 	}
-end
-
-local function waitForGlobal(name: string, timeoutSeconds: number): any?
-	local deadline = os.clock() + timeoutSeconds
-	while os.clock() < deadline do
-		if _G[name] then return _G[name] end
-		task.wait()
-	end
-	return _G[name]
 end
 
 Players.PlayerAdded:Connect(function(player)
@@ -89,14 +101,10 @@ Players.PlayerAdded:Connect(function(player)
 	loadedData[player.UserId] = data
 	buildLeaderstats(player, data)
 
-	-- BAB-002 load order: rebuild plot → replay plants. Both APIs are exposed
-	-- via _G by their respective server scripts; wait briefly for them in case
-	-- of script load ordering on first server boot.
-	-- BAB-002.1: If plotClaimed=true but plotSlotIndex is nil (legacy save from
-	-- before plotSlotIndex was tracked), still rebuild — PlotManager will pick
-	-- the first available slot.
+	-- ADR-1: load order via Services.await. Same 5s budget as the previous
+	-- _G poll, but wakes immediately on register instead of polling.
 	if data.plotClaimed then
-		local plotManager = waitForGlobal("PlotManager", 5)
+		local plotManager = Services.await("PlotManager", 5)
 		if plotManager and plotManager.rebuildFromSave then
 			local slotToTry = data.plotSlotIndex or -1  -- -1 signals "any"
 			local ok, err = pcall(plotManager.rebuildFromSave, player, slotToTry)
@@ -108,7 +116,7 @@ Players.PlayerAdded:Connect(function(player)
 		end
 	end
 
-	local plantHandler = waitForGlobal("PlantHandler", 5)
+	local plantHandler = Services.await("PlantHandler", 5)
 	if plantHandler and plantHandler.restore then
 		local ok, err = pcall(plantHandler.restore, player, data.plot, data.lastSeen)
 		if not ok then

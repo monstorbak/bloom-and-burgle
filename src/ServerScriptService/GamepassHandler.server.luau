@@ -7,6 +7,8 @@
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Workspace = game:GetService("Workspace")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
 -- Default pass IDs (replace with real ones from the Roblox dashboard).
 -- Set Workspace:SetAttribute("BB_GAMEPASS_<KEY>", id) at runtime to override.
@@ -52,4 +54,8 @@ for _, p in Players:GetPlayers() do task.spawn(applyPerks, p) end
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
 	if not wasPurchased then return end
 	applyPerks(player)
+	-- ADR-3: telemetry — gamepass conversion event (most important $ metric)
+	Telemetry.track("gamepass_purchased", {
+		gamePassId = gamePassId,
+	}, player)
 end)

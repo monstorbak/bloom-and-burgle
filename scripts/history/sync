@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# scripts/history/sync — CWD-independent dispatcher for the history toolkit.
+#
+# Resolves its own location via $BASH_SOURCE so the script works regardless
+# of where it's invoked from (repo root, subdirectory, hook context, etc).
+# Forwards to one of the Python scripts:
+#
+#   sync                 → append_history.py --quiet  (hot path; safe default)
+#   sync append         → append_history.py
+#   sync export          → export_history.py
+#   sync query "..."     → query_history.py "..."
+#
+# All extra args after the subcommand pass through verbatim.
+
+set -uo pipefail
+
+# Anchor to the directory containing THIS script, not the caller's CWD.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cmd="${1:-append-quiet}"
+shift || true
+
+case "$cmd" in
+    append-quiet)
+        # Default mode used by the Stop hook. Silent on no-op, prefixes
+        # output with a tag if anything's printed.
+        exec python3 "$HERE/append_history.py" --quiet "$@"
+        ;;
+    append)
+        exec python3 "$HERE/append_history.py" "$@"
+        ;;
+    export)
+        exec python3 "$HERE/export_history.py" "$@"
+        ;;
+    query)
+        exec python3 "$HERE/query_history.py" "$@"
+        ;;
+    *)
+        echo "usage: $(basename "$0") [append-quiet|append|export|query] [args...]" >&2
+        echo "  append-quiet  — silent incremental append (Stop hook default)" >&2
+        echo "  append        — verbose incremental append" >&2
+        echo "  export        — full re-render of the .md from JSONL" >&2
+        echo "  query \"...\"   — RLM-powered Q&A over the JSONL" >&2
+        exit 2
+        ;;
+esac

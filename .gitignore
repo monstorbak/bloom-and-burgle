@@ -41,3 +41,13 @@ scripts/debug/captures/
 
 # Claude Code per-machine state (committed: .claude/settings.json)
 .claude/settings.local.json
+
+# Chat history mirror — regenerable from ~/.claude/projects/<encoded>/<id>.jsonl
+# via scripts/history/export_history.py. Don't commit (it would churn every turn).
+Bloom&Burgle_ChatHistory.md
+scripts/history/.last_uuid
+scripts/history/.rlm_logs/
+
+# Python bytecode
+__pycache__/
+*.pyc
