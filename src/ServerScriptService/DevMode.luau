@@ -5,7 +5,7 @@
 --   Workspace:GetAttribute("DevMode")  -> boolean (default: false)
 --
 -- When enabled (any value truthy):
---   • New players spawn with $10,000 cash + 5 of each common seed
+--   • New players spawn with $10,000 cash + 5 of a couple test critter seeds
 --   • /devmode chat command (admin-only) toggles it live
 --   • Visible "DEV MODE" badge on the HUD so it's NEVER unintentionally shipped
 --
@@ -29,8 +29,8 @@ local RunService = game:GetService("RunService")
 local DEV_BUFFS = {
 	cash = 10000,
 	seeds = {
-		sunbloom = 5,
-		lavender_glow = 5,
+		cogwork_rat = 5,
+		fire_salamander = 5,
 	},
 }
 
