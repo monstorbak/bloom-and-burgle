@@ -126,21 +126,36 @@ end)
 -- and fire the toast once per ~0.5s window).
 local sellCooldown: { [number]: number } = {}
 
+-- Forward declaration: BAB-FINDABILITY 2 — the SellPad / ScrapPad handlers
+-- auto-harvest any of the player's ripe pods before scanning inventory, so
+-- the player only needs to walk on ONE pad. Defined later in the file
+-- (after harvestPlanter) and captured via this upvalue.
+local harvestAllRipeForPlayer: ((Player) -> number)? = nil
+
 -- Wire SellPad on a per-instance basis (handles plots created mid-game)
 local function wireSellPad(sellPad: Instance)
 	if not sellPad:IsA("BasePart") then return end
 	if sellPad:GetAttribute("WiredSell") then return end
 	sellPad:SetAttribute("WiredSell", true)
+	print(string.format("[BAB-LIFE] wireSellPad connected: %s", sellPad:GetFullName()))
 	sellPad.Touched:Connect(function(hit)
 		local character = hit:FindFirstAncestorOfClass("Model")
 		if not character then return end
 		local player = Players:GetPlayerFromCharacter(character)
 		if not player then return end
-		if sellPad:GetAttribute("OwnerUserId") ~= player.UserId then return end
+		if sellPad:GetAttribute("OwnerUserId") ~= player.UserId then
+			-- print(string.format("[BAB-DBG] sell pad touched by non-owner %d", player.UserId))
+			return
+		end
+		print(string.format("[BAB-DBG] sell pad TOUCHED by %s", player.Name))
 
 		local now = os.clock()
 		if sellCooldown[player.UserId] and now - sellCooldown[player.UserId] < 0.5 then return end
 		sellCooldown[player.UserId] = now
+
+		-- BAB-FINDABILITY 2: auto-harvest any ripe pods first so the player
+		-- doesn't have to walk pod-by-pod. One walk = harvest + sell.
+		if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
 
 		local inv = getInv(player)
 		local total = 0
@@ -205,6 +220,10 @@ local function wireScrapPad(scrapPad: Instance)
 		if scrapCooldown[player.UserId] and now - scrapCooldown[player.UserId] < 0.5 then return end
 		scrapCooldown[player.UserId] = now
 
+		-- BAB-FINDABILITY 2: same single-walk UX as sell pad — harvest first
+		-- then scrap. Player only needs to walk on one pad.
+		if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
+
 		local inv = getInv(player)
 		local totalCp = 0
 		local skipped = 0
@@ -238,6 +257,124 @@ end
 
 for _, scrapPad in CollectionService:GetTagged("ScrapPad") do wireScrapPad(scrapPad) end
 CollectionService:GetInstanceAddedSignal("ScrapPad"):Connect(wireScrapPad)
+
+-- BAB-FINDABILITY 3: .Touched is famously unreliable on Anchored sensors when
+-- the player teleports / respawns into them, or when the character was already
+-- intersecting at script-load time. To guarantee the sell + scrap pads fire
+-- whenever the player is physically standing on them, we add a 4Hz proximity
+-- check that simulates a touch when the player's HRP is inside the pad bounds.
+-- The same per-player cooldown tables (sellCooldown / scrapCooldown) prevent
+-- double-fires with the .Touched path.
+local function isInsidePart(point: Vector3, part: BasePart): boolean
+	-- Cheap AABB containment in the part's local frame.
+	local local_p = part.CFrame:PointToObjectSpace(point)
+	local half = part.Size * 0.5
+	return math.abs(local_p.X) <= half.X
+		and math.abs(local_p.Y) <= half.Y
+		and math.abs(local_p.Z) <= half.Z
+end
+
+-- We re-fire .Touched on the pad with the player's HRP as the "hit" — same
+-- handler runs, so all the cooldown / owner-check / harvest+sell logic
+-- applies. (sellPad.Touched is wired with a closure that handles everything.)
+local function pulseProximity()
+	for _, player in Players:GetPlayers() do
+		local char = player.Character
+		if not char then continue end
+		local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not hrp then continue end
+		local pos = hrp.Position
+		-- Sell pads
+		for _, pad in CollectionService:GetTagged("SellPad") do
+			if not pad:IsA("BasePart") then continue end
+			if pad:GetAttribute("OwnerUserId") ~= player.UserId then continue end
+			if isInsidePart(pos, pad) then
+				-- Fire the same Touched handler by triggering Touched event.
+				-- We can't call the listener directly (it's anonymous in
+				-- wireSellPad), so we set HRP CFrame to itself which will
+				-- cause Roblox to re-evaluate touches. As a more reliable
+				-- fallback we just call the harvest+sell logic inline here.
+				local now = os.clock()
+				if not (sellCooldown[player.UserId] and now - sellCooldown[player.UserId] < 0.5) then
+					sellCooldown[player.UserId] = now
+					if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
+					-- Inline sell — same logic as wireSellPad
+					local inv = getInv(player)
+					local total = 0
+					for key, count in inv do
+						if count <= 0 then continue end
+						local sep = string.find(key, ":") or 0
+						local sId = string.sub(key, 1, sep - 1)
+						local mId = string.sub(key, sep + 1)
+						local spec = PlantData.get(sId)
+						if not spec then continue end
+						local mult = 1
+						if mId ~= "" then
+							for _, m in PlantData.MUTATIONS do
+								if m.id == mId then mult = m.multiplier; break end
+							end
+						end
+						total += count * spec.baseValue * mult
+						inv[key] = 0
+					end
+					if total > 0 then
+						local cashMult = player:GetAttribute("CashMultiplier") or 1
+						total = math.floor(total * cashMult)
+						local ls = player:FindFirstChild("leaderstats")
+						if ls then
+							local cash = ls:FindFirstChild("Cash") :: IntValue?
+							if cash then cash.Value = cash.Value + total end
+						end
+						local lifetime = (player:GetAttribute("LifetimeCash") or 0) + total
+						player:SetAttribute("LifetimeCash", lifetime)
+						SellPlantsRE:FireClient(player, total)
+					end
+					break  -- only fire once per player per tick
+				end
+			end
+		end
+		-- Scrap pads
+		for _, pad in CollectionService:GetTagged("ScrapPad") do
+			if not pad:IsA("BasePart") then continue end
+			if pad:GetAttribute("OwnerUserId") ~= player.UserId then continue end
+			if isInsidePart(pos, pad) then
+				local now = os.clock()
+				if not (scrapCooldown[player.UserId] and now - scrapCooldown[player.UserId] < 0.5) then
+					scrapCooldown[player.UserId] = now
+					if harvestAllRipeForPlayer then harvestAllRipeForPlayer(player) end
+					local inv = getInv(player)
+					local totalCp = 0
+					local skipped = 0
+					for key, count in inv do
+						if count <= 0 then continue end
+						local sep = string.find(key, ":") or 0
+						local sId = string.sub(key, 1, sep - 1)
+						local spec = PlantData.get(sId)
+						if not spec then continue end
+						if spec.tag == "Sacred" then skipped += count; continue end
+						totalCp += count * spec.scrapValue
+						inv[key] = 0
+					end
+					if totalCp > 0 or skipped > 0 then
+						if totalCp > 0 then
+							player:SetAttribute("CogParts", (player:GetAttribute("CogParts") or 0) + totalCp)
+						end
+						ScrapPlantsRE:FireClient(player, totalCp, skipped)
+					end
+					break
+				end
+			end
+		end
+	end
+end
+
+task.spawn(function()
+	while true do
+		pulseProximity()
+		task.wait(0.25)
+	end
+end)
+print("[BAB-LIFE] PlantHandler proximity pulse online (4Hz fallback for .Touched)")
 
 -- BAB-011: Harvest a single ripe planter for the player. Adds to stash.
 -- Returns true if something was actually harvested.
@@ -288,7 +425,23 @@ local function harvestPlanter(player: Player, planter: BasePart): boolean
 	return true
 end
 
--- Wire harvest-on-touch for any planter
+-- BAB-FINDABILITY 2: harvest every ripe pod owned by this player. Returns
+-- the count harvested. Assigned to the forward-declared upvalue so the
+-- SellPad and ScrapPad handlers can call it before scanning inventory.
+harvestAllRipeForPlayer = function(player: Player): number
+	local n = 0
+	for _, planter in CollectionService:GetTagged("Planter") do
+		if not planter:IsA("BasePart") then continue end
+		if planter:GetAttribute("OwnerUserId") ~= player.UserId then continue end
+		if not planter:GetAttribute("Ripe") then continue end
+		if harvestPlanter(player, planter) then n += 1 end
+	end
+	return n
+end
+
+-- Wire harvest-on-touch for any planter (kept as a fallback path — the
+-- SellPad/ScrapPad now also auto-harvest, but pod-by-pod harvest is still
+-- valid if the player wants more granular control later).
 local function wirePlanterHarvest(planter: Instance)
 	if not planter:IsA("BasePart") then return end
 	if planter:GetAttribute("WiredHarvest") then return end
