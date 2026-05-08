@@ -8,7 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
 local ServerScriptService = game:GetService("ServerScriptService")
-local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter") :: ModuleScript)
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
 
@@ -44,7 +44,7 @@ StealAttemptRE.OnServerEvent:Connect(function(thief, planter)
 	if os.time() - plantedAt < growSeconds then return end
 	local speciesId = planter:GetAttribute("PlantedSpecies")
 	if typeof(speciesId) ~= "string" then return end
-	local species = PlantData.get(speciesId)
+	local species = CritterData.get(speciesId)
 	if not species then return end
 
 	-- Owner shield (gamepass-driven attribute set by GamepassHandler)
@@ -69,7 +69,7 @@ StealAttemptRE.OnServerEvent:Connect(function(thief, planter)
 	local mutMult = 1
 	local mutEmoji = ""
 	if math.random() <= species.mutationChance then
-		local mut = PlantData.rollMutation()
+		local mut = CritterData.rollMutation()
 		if mut then mutMult = mut.multiplier; mutEmoji = mut.emoji end
 	end
 

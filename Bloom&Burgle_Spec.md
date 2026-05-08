@@ -52,13 +52,15 @@ Premium payouts (engagement-based Robux from Premium subscribers) add passive in
 
 3\. \*\*Social & Competitive Features (Virality Engine)\*\*
 
-   \- \*\*Stealing/Raiding\*\*: Run into neighbor plots, grab plants/pets (with risk — alarms, traps, temporary locks). Pay-to-escape jail creates instant dev-product sales (exactly like Steal a Brainrot).
+   \- \*\*Stealing/Raiding via the Steal Portal\*\*: in the Cogworks, a dim-red **Steal Portal** teleports the player into a separate Roblox place (shared universe, separate placeId) — a procedurally-generated **corridor** of doors. Each door routes to a different active player's hatchery; first visit is a guessing game; visited doors are persisted per-player as a personal cartographic collectible. A click-to-snap map lets endgame thieves jump to known waypoints. Once through a door, the existing alarm/raid mechanics fire (alarms, traps, temporary locks). Pay-to-escape jail creates instant dev-product sales (exactly like Steal a Brainrot). See `AGENT_COORDINATION/tickets/BAB-STEAL-CORRIDORS.md`.
+
+   \- \*\*Critter Escape Mechanic\*\*: every ripe pod has an escape window equal to its grow time. If the player doesn't return in time, the critter escapes — assets help the player, liabilities wreak havoc on the plot. This is the macro-pressure that makes "I logged in" matter, and the chaos generator that makes clips. See `AGENT_COORDINATION/tickets/BAB-CRITTER-ESCAPE.md`.
 
    \- \*\*Visiting & Flexing\*\*: Teleport to friends’ gardens/homes. Leaderboards for “Richest Garden,” “Rarest Mutation,” “Most Stolen From.”
 
    \- \*\*Roleplay Hub\*\*: Central town square with customizable houses, vehicles, clothing, parties, jobs (farmer, thief, merchant). Private servers for roleplay groups.
 
-   \- \*\*Trading Economy\*\*: Player-to-player pet/plant trading (creates emergent content and keeps players logging in).
+   \- \*\*Trading Economy via the Marketplace Portal\*\*: in the Cogworks, a gold **Marketplace Portal** teleports the player into a separate Roblox place — a destination commerce hub with 3 named NPC merchants (each with rotating buy preferences) and player-to-player trade booths. The killer feature is **asset/liability arbitrage**: a knight who hatched a coal_drake (liability for him) sells it to a sky-pirate player who values dragons (asset for them) at well above the merchant floor. Both players win; the arbitrage IS the social-economic loop. See `AGENT_COORDINATION/tickets/BAB-MARKETPLACE-HUB.md`.
 
    \- \*\*Co-op/Clan System\*\*: Shared garden plots or raid parties for bigger events.
 

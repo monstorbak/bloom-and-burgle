@@ -46,9 +46,9 @@ end
 
 local function grantSeedBundle(player: Player)
 	-- 5 random non-mythic seeds added to stash
-	local PlantData = require(game:GetService("ReplicatedStorage").Modules.PlantData)
+	local CritterData = require(game:GetService("ReplicatedStorage").Modules.CritterData)
 	local pool: { string } = {}
-	for _, s in PlantData.list() do
+	for _, s in CritterData.list() do
 		if s.rarity ~= "Mythic" then table.insert(pool, s.id) end
 	end
 	for _ = 1, 5 do

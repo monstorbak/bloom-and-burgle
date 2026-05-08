@@ -92,30 +92,41 @@ Avoid the default Roblox sky — the #1 "low-effort game" tell on TikTok.
   - 🎩 **Wardrobe & Costumery** — class outfits + critter cosmetic mods (cog implants, oil-coats).
   - 🏆 **Trophy Hall** — wall of recent Mythic hatches + recent raid victories, video-loop screens.
   - 🚪 **Visit Hub** — teleport pad to friends' Hatcheries.
-- **Visual rule**: the Cogworks reads as **the warm public workshop**. Plots read as **personal, modified, dangerous**. The boundary is psychologically important.
+  - 💰 **Marketplace Portal** — gold-rim brass archway with steam pouring from the keystone. Walking through teleports the player to a separate **Marketplace** Roblox place (own placeId, shared DataStore) — a destination commerce hub with NPC merchants and player-to-player trade booths. See `AGENT_COORDINATION/tickets/BAB-MARKETPLACE-HUB.md`.
+  - 🥷 **Steal Portal** — dim red archway, smoke coiling from the threshold, deliberately positioned across the plaza from the Marketplace Portal to read as moral foil. Walking through (after a small entry fee) teleports the player to a separate **Corridors** Roblox place — a procedurally-generated maze of doors, each leading to another player's Hatchery for a stealing run. See `AGENT_COORDINATION/tickets/BAB-STEAL-CORRIDORS.md`.
+- **Visual rule**: the Cogworks reads as **the warm public workshop**. Plots read as **personal, modified, dangerous**. The boundary is psychologically important. The two portals (gold for commerce, red for crime) are the same kind of boundary — visible threshold to a different kind of play.
 
 ### 2.2 Hatchery ring (plots)
 - 16 plots in a ring at radius 220 (existing — keep).
 - Each plot reskinned as a **Hatchery**: `WoodPlanks` floor with brass trim, 9 incubator pods (replaces planters), an owner sign engraved in `Antique` font, a wrought-iron perimeter fence (upgradeable).
+- **Pod spacing**: pods are arranged on a 3×3 grid with **10-stud center-to-center** spacing (was 8; bumped 2026-05-08 to give wandering escape-mechanic critters room to do their thing without visually overlapping pods, see §9.6).
 - Each plot is its own visible biome at distance — players can spot "the rich whale's hatchery" by silhouette: more pods, taller fences, glowing critters in their stable.
 - **Fence tiers** (whale-driven cosmetic + raid defense):
   Wood Picket → Wrought Iron → Brass Battlements → Aether-Caged → Mythic Cogworks. Each tier visible from 50+ studs.
 - **Plot is always lit** so the harvest-decision moment is always playable. Spookiness lives at the perimeter and on the streets, not on the work surface.
 
 ### 2.3 Combat & raid lanes
-This game has emergent combat from kept liability critters and from raiders. Required:
+This game has emergent combat from kept liability critters, from raiders, **and from un-harvested critters that escape their pods past the harvest window** (§9.6). Required:
 - Plot perimeters have **break-in points** (fence gaps) so the path of attack is legible to viewers of clips.
-- **Alarm pylons** on every plot — go red and emit a steam-siren when an unauthorized harvest fires or a kept liability goes feral. Visible 100+ studs.
+- **Alarm pylons** on every plot — go red and emit a steam-siren when:
+  - an unauthorized harvest fires (raider stole a pod), OR
+  - a kept liability goes feral (NURTURE'd liability turned), OR
+  - **an un-harvested critter escapes** (§9.6) — the alarm pulse is colored differently (violet) so a player viewing a clip can read at a glance whether it's a raid or an escape.
+  Pylons are visible 100+ studs.
 - **Combat lanes**: streets between plots are wider than the plot interior. Chases look cinematic and have natural camera angles.
 - **Public Arena** at the far edge of the Cogworks — opt-in 1v1 critter duels. Spectator stands. Generates clip content.
+- Raid attacks are now **funneled through the Steal Portal** (Cogworks §2.1) → procedural corridor → target's Hatchery. There is no "walk directly across the world to a stranger's Hatchery" path; raids are gated on the corridor system. See `AGENT_COORDINATION/tickets/BAB-STEAL-CORRIDORS.md`.
 
 ### 2.4 Pawn Forge (sell pad on plot)
-The on-plot sell pad is now: 12×0.4×12 ember-orange neon pad on the plot floor (post-fix verified live), brass post + sign, glow halo. **Required additions next iteration**:
+The on-plot sell pad is now: 12×0.4×12 ember-orange neon pad on the plot floor (post-fix verified live), brass post + sign, glow halo. The Pawn Forge is the **fast-sell-to-merchant** path — flat formula, no haggling, instant payout. For destination commerce (NPC merchants with personality, player-to-player trade, asset/liability arbitrage), players walk through the **Marketplace Portal** in the Cogworks (§2.1) — see `AGENT_COORDINATION/tickets/BAB-MARKETPLACE-HUB.md`. Both paths are first-class; the Pawn Forge is for "I just want this gone" and the Marketplace is for "I want top dollar."
+
+**Required additions next iteration**:
 - Coin-and-gear particle burst on successful sell, scaled to payout magnitude.
 - Brass-bell SFX (3 variants).
 - Camera shake on Mythic sell.
 - Sign content adapts to stash: "💰 SELL 1 critter" → "💰 SELL 5 (incl. 1 Rare)" → "👑 MYTHIC READY!" — turns the sign into a status indicator.
 - A second "SCRAP" pad next to it (smaller, `Valve Red` rim) for the recycle path — see §9.
+- A **comparison sign** above the Pawn Forge: "Marketplace: avg 1.4× more for assets to your class →" — surfaces the arbitrage incentive at the moment of decision.
 
 ### 2.5 Egg Emporium (replaces Seed Shop)
 Currently a green neon block. Replace with a **proper market stall**: striped awning (Brass + Goggle Gold), sandwich-board sign in Antique font, a slowly rotating glass cloche on a pedestal showing the rarest in-stock egg. Egg variants visible behind the counter as inventory parallax. Looks like a destination, not a hitbox.
@@ -357,12 +368,66 @@ The modal pre-reads the affinity row (§3.5) and surfaces a single advisory line
 
 ### 9.4 Decision pressure
 - 30-second soft timer on the modal. After 30s, an idle hint pulses ("Pick one — your critter's getting impatient"). After 60s, the modal locks the SELL choice in by default. Pressure preserves pace; lock-in protects AFK farmers from accidental nurture of liabilities.
+- This is the *modal*-level timer for an active player at the pod. The *macro*-level "you forgot about this critter entirely" timer is the **escape window** below.
 
 ### 9.5 Special tags
 Some critters spawn tagged:
 - **Contraband** (rare, ~3%) — cannot be sold (Merchants' Guild ban). Player must SCRAP or NURTURE. Often very high stat. Drives drama clips.
 - **Sacred** (rare, ~2%) — cannot be scrapped. Hexers love this; Tinkerers groan.
 - **Mythic** (very rare, ~0.5%) — see Rarity ladder. Strictly better stat profile; affinity rules still apply.
+
+### 9.6 Escape window (the macro-timer)
+
+If the player doesn't return to the pod within a window equal to the
+species' grow time (1:1 ratio — a 240s grow ⇒ 240s window), the
+critter **escapes the pod**. Escape is the **chaos generator** of the
+loop — risk-pressure for the active player, content-generator for live
+stream clips.
+
+**State machine** (per pod):
+
+```
+EMPTY → INCUBATING → RIPE (escape timer T_escape = T_grow starts) → ESCAPED → BEHAVIOR_ACTIVE → DESPAWNED → EMPTY
+                       ↑                                                ↓
+                       └─── HARVESTED (player walks over) ──────────────┘
+```
+
+**Asset escapes** (per the §8 affinity matrix): the escaped critter
+runs a **beneficial** passive behavior on the player's plot for a
+configured duration. Example seed entry:
+- **Coal Drake (asset for sky pirate / hexer)**: "Coal Forge" — every
+  incubator pod heats 1.5×; all in-progress pods ripen 50% faster for
+  the duration.
+
+**Liability escapes**: a **damaging** passive behavior. Example:
+- **Coal Drake (liability for knight / tinkerer)**: "Drake Strafe" —
+  every 8s, picks one ripe-or-incubating pod and sets it on fire; the
+  pod becomes EMPTY and any in-progress incubation is lost.
+
+**UX during the escape window**:
+- The pod's aether window pulse shifts hue from cyan → ember → red as
+  the timer drains. At <25% remaining, it strobes red and the plot's
+  alarm pylon (§2.3) lights up violet (so a clip viewer can read at a
+  glance: violet = escape, red = raid).
+- A new client-side **EscapeWarningHUD** stacks countdowns: "🐉 Coal
+  Drake — 1:34 to escape!" Mobile-first per §3.1.
+
+**On escape**:
+- Toast (§3.2): "💥 Coal Drake escaped! Your pods are on fire." (liability)
+  or "✨ Coal Drake forged free! Pods will ripen 50% faster." (asset).
+- Telemetry: `pod_escaped` event with `{species, class, affinity,
+  behavior}` for analytics tuning.
+
+The escape mechanic ties directly to:
+- **§2.3** Combat & raid lanes — alarm pylons fire violet.
+- **§8** Critter affinity matrix — drives whether escape is asset or
+  liability.
+- **§10** Upgrade durability — liability ferals damage upgrade slots
+  (per §10.4 + §11.4 mechanics).
+
+Behavior catalog ships with **2–3 entries per class minimum** at
+launch, expanded via live ops (§13). Full ticket:
+`AGENT_COORDINATION/tickets/BAB-CRITTER-ESCAPE.md`.
 
 ---
 

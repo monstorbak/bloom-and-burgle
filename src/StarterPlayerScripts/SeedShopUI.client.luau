@@ -5,7 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local PlantData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("PlantData"))
+local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 
 local OpenShopRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("OpenShop") :: RemoteEvent
 local BuySeedRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("BuySeed") :: RemoteEvent
@@ -130,7 +130,7 @@ local function open()
 		local ls = player:FindFirstChild("leaderstats")
 		local cash = ls and ls:FindFirstChild("Cash") and (ls.Cash :: IntValue).Value or 0
 
-		for i, species in ipairs(PlantData.list()) do
+		for i, species in ipairs(CritterData.list()) do
 			local row = Instance.new("Frame")
 			row.Size = UDim2.new(1, -10, 0, 90)
 			row.BackgroundColor3 = Color3.fromRGB(50, 40, 70)
@@ -141,7 +141,7 @@ local function open()
 			rc.CornerRadius = UDim.new(0, 12)
 			rc.Parent = row
 			local rs = Instance.new("UIStroke")
-			local rcol = PlantData.rarityColor(species.rarity)
+			local rcol = CritterData.rarityColor(species.rarity)
 			rs.Color = Color3.new(rcol[1], rcol[2], rcol[3])
 			rs.Thickness = 2
 			rs.Parent = row

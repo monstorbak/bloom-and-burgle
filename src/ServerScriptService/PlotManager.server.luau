@@ -14,6 +14,14 @@ local NUM_PLOT_SLOTS = 16                    -- max concurrent player Hatcheries
 local PLOT_RING_RADIUS = 220                 -- distance from Cogworks (where Hatcheries get built)
 local CLAIM_PAD_RING_RADIUS = 35             -- distance from spawn where claim pads sit (close so mobile players can find them)
 
+-- Stud spacing between adjacent incubator pods on the 3×3 grid.
+-- BAB-NEW-A (2026-05-08): bumped from 8 → 10 so pods don't visually crowd
+-- each other once the upcoming escape-mechanic spawns wandering critter
+-- NPCs on the plot floor. The 3×3 grid covers (POD_GRID_STEP × 2) studs
+-- per axis center-to-center, i.e. now 20 studs (was 16). Plot floor is
+-- 40×40 so this still fits comfortably inside the perimeter fence.
+local POD_GRID_STEP = 10
+
 -- Steampunk palette (sourced from BrandColors per spec §1.2)
 local CLAIM_PAD_COLOR  = BrandColors.GoggleGold       -- gold claim pad — premium-looking but not raid-able
 local PLOT_BASE_COLOR  = BrandColors.OilBlack         -- plank floor read as oily wood
@@ -150,7 +158,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			pod.Color = POD_COLOR
 			pod.TopSurface = Enum.SurfaceType.Smooth
 			pod.BottomSurface = Enum.SurfaceType.Smooth
-			pod.CFrame = CFrame.new(origin + Vector3.new(x * 8, 3.1, z * 8)) * CFrame.Angles(0, 0, math.rad(90))
+			pod.CFrame = CFrame.new(origin + Vector3.new(x * POD_GRID_STEP, 3.1, z * POD_GRID_STEP)) * CFrame.Angles(0, 0, math.rad(90))
 			pod.Parent = plot
 			pod:AddTag("Planter")
 			pod:SetAttribute("OwnerUserId", player.UserId)
@@ -166,7 +174,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			collar.Color = POD_RIM_COLOR
 			collar.CanCollide = false
 			collar.CanTouch = false
-			collar.CFrame = CFrame.new(origin + Vector3.new(x * 8, 5.9, z * 8)) * CFrame.Angles(0, 0, math.rad(90))
+			collar.CFrame = CFrame.new(origin + Vector3.new(x * POD_GRID_STEP, 5.9, z * POD_GRID_STEP)) * CFrame.Angles(0, 0, math.rad(90))
 			collar.Parent = pod
 
 			-- Aether window — glows cyan when pod is active, dim when empty
@@ -180,7 +188,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			window.Transparency = 0.4
 			window.CanCollide = false
 			window.CanTouch = false
-			window.CFrame = CFrame.new(origin + Vector3.new(x * 8, 3.1, z * 8)) * CFrame.Angles(0, 0, math.rad(90))
+			window.CFrame = CFrame.new(origin + Vector3.new(x * POD_GRID_STEP, 3.1, z * POD_GRID_STEP)) * CFrame.Angles(0, 0, math.rad(90))
 			window.Parent = pod
 			-- The "EmptyBorder" naming is preserved so PlantHandler's grow-tick
 			-- transparency toggle (border.Transparency = 0/1) keeps working.
@@ -196,7 +204,7 @@ local function buildPlot(player: Player, origin: Vector3): Model
 			vent.Color = BrandColors.IronworkCharcoal
 			vent.CanCollide = false
 			vent.CanTouch = false
-			vent.CFrame = CFrame.new(origin + Vector3.new(x * 8, 6.6, z * 8)) * CFrame.Angles(0, 0, math.rad(90))
+			vent.CFrame = CFrame.new(origin + Vector3.new(x * POD_GRID_STEP, 6.6, z * POD_GRID_STEP)) * CFrame.Angles(0, 0, math.rad(90))
 			vent.Parent = pod
 
 			local steamAttach = Instance.new("Attachment")

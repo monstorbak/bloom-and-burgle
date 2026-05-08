@@ -26,17 +26,23 @@
 
 local Services = {}
 
-export type PlantHandlerAPI = {
+-- ADR-5 (P1.2): the canonical name is CritterHandler. PlantHandlerAPI is kept
+-- as a type alias for one release so out-of-tree consumers don't break.
+export type CritterHandlerAPI = {
 	snapshot: (Player) -> { [string]: any },
 	restore: (Player, { [string]: any }?, number?) -> (),
 	snapshotStable: ((Player) -> { any })?,
 }
+export type PlantHandlerAPI = CritterHandlerAPI
 
 export type PlotManagerAPI = {
 	rebuildFromSave: (Player, number) -> Model?,
 }
 
 export type ServiceMap = {
+	-- The same registered API is exposed under both names (Persistence
+	-- registers it twice). Consumers should prefer CritterHandler.
+	CritterHandler: CritterHandlerAPI?,
 	PlantHandler: PlantHandlerAPI?,
 	PlotManager: PlotManagerAPI?,
 }
