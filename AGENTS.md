@@ -113,11 +113,31 @@ curl -sS http://127.0.0.1:7878/rpc -H 'Content-Type: application/json' \
 
 Helper scripts in `scripts/` already wrap a lot of this — prefer them.
 
+## The 3-place universe
+
+The BAB universe (id `10130205713`) has three places that share the
+DataStore. Each has its own Rojo project and build/publish workflow.
+
+| Place | PlaceId | Project | Build → Publish |
+|---|---|---|---|
+| **Hatchery** (start place) | `93948369125480` | `default.project.json` | `scripts/build.sh` → `scripts/publish.sh` |
+| **Marketplace** | `90507376043667` | `default-marketplace.project.json` | `scripts/build-marketplace.sh` → `scripts/publish-marketplace.sh` |
+| **Corridors** | `90190105638268` | `default-corridors.project.json` | `scripts/build-corridors.sh` → `scripts/publish-corridors.sh` |
+
+The PlaceIds are the source of truth in [`BabPlaces.luau`](src/ReplicatedStorage/Modules/BabPlaces.luau), with runtime override via `Workspace.<Name>PlaceId` attributes (mirrors `BB_GAMEPASS_*` pattern).
+
+**Shipping a portal-flow change** typically requires publishing all
+relevant places (e.g., a return-portal change in the Marketplace
+needs `publish-marketplace.sh`; the Cogworks-side Marketplace Portal
+needs `publish.sh`). The Hatchery's `BabPlaces.luau` is shared via
+Rojo `$path` so the constants stay in lockstep.
+
 ## Don't break
 
-- DataStore key `BloomAndBurgleData_v1` — schema migrations need backfill (see `DataStore.luau`).
+- DataStore key `BloomAndBurgleData_v1` — schema migrations need backfill (see `DataStore.luau`). **Shared across all three places** in the universe.
 - Receipt key `BloomAndBurgle_Receipts_v1` — losing this = duplicate dev-product grants. Never reset.
 - `BB_GAMEPASS_*` and `BB_DEVPRODUCT_*` Workspace attributes — these are the runtime ID overrides. Don't hardcode IDs in the Luau.
+- **PlaceIds in `BabPlaces.luau`** — never change without coordinated publish to all three places. The Hatchery's `MarketplacePortal` and `StealPortal` look these up at boot to know where to teleport.
 
 ## Long-term goals (don't lose sight)
 

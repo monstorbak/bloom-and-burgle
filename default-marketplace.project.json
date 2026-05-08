@@ -1,0 +1,76 @@
+{
+  "name": "Bloom & Burgle (Marketplace)",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Modules": {
+        "$path": "src/ReplicatedStorage/Modules"
+      },
+      "RemoteEvents": {
+        "$path": "src/ReplicatedStorage/RemoteEvents"
+      }
+    },
+
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "src-marketplace/ServerScriptService",
+
+      "Services":    { "$path": "src/ServerScriptService/Services.luau" },
+      "RateLimiter": { "$path": "src/ServerScriptService/RateLimiter.luau" },
+      "Telemetry":   { "$path": "src/ServerScriptService/Telemetry.luau" },
+      "DataStore":   { "$path": "src/ServerScriptService/DataStore.luau" }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$path": "src-marketplace/StarterPlayerScripts"
+      }
+    },
+
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "FilteringEnabled": true
+      },
+      "Baseplate": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "Locked": true,
+          "Size": [400, 4, 400],
+          "Position": [0, -2, 0],
+          "Material": "Cobblestone",
+          "Color": [0.18, 0.16, 0.14]
+        }
+      }
+    },
+
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Brightness": 2.5,
+        "ClockTime": 14,
+        "FogEnd": 1500,
+        "GlobalShadows": true,
+        "OutdoorAmbient": [0.5, 0.5, 0.5],
+        "Technology": "Future"
+      }
+    },
+
+    "SoundService": { "$className": "SoundService" },
+
+    "HttpService": {
+      "$className": "HttpService",
+      "$properties": { "HttpEnabled": true }
+    },
+
+    "Players": {
+      "$className": "Players",
+      "$properties": { "RespawnTime": 3 }
+    }
+  }
+}
