@@ -140,6 +140,35 @@ steam.Speed = NumberRange.new(1.0, 1.8)
 steam.SpreadAngle = Vector2.new(8, 8)
 steam.Parent = steamAttach
 
+-- ── Today's special plaque (Phase 3 plaza-visible banner) ────────────
+local todaysSId, todaysSName, todaysSEmoji = MerchantSellFlow.todaysSpecialFor(NPC_ID)
+if todaysSName then
+	local plaque = Instance.new("Part")
+	plaque.Name = "TodaysSpecialPlaque"
+	plaque.Anchored = true
+	plaque.CanCollide = false
+	plaque.Material = Enum.Material.Metal
+	plaque.Color = BrandColors.WitchVellum
+	plaque.Size = Vector3.new(7, 1.2, 0.5)
+	plaque.Position = STALL_POSITION + Vector3.new(0, 4.4, -4)
+	plaque.Parent = stall
+
+	local pgui = Instance.new("SurfaceGui")
+	pgui.Face = Enum.NormalId.Front
+	pgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	pgui.PixelsPerStud = 50
+	pgui.Parent = plaque
+
+	local plbl = Instance.new("TextLabel")
+	plbl.Size = UDim2.fromScale(1, 1)
+	plbl.BackgroundTransparency = 1
+	plbl.Text = string.format("🜍 ESSENCE: %s %s", todaysSEmoji or "", todaysSName)
+	plbl.TextColor3 = BrandColors.SteamCream
+	plbl.Font = Enum.Font.GothamBold
+	plbl.TextScaled = true
+	plbl.Parent = pgui
+end
+
 -- ── Prompt + wire to MerchantSellFlow ────────────────────────────────
 local prompt = Instance.new("ProximityPrompt")
 prompt.Name = "HexerinePrompt"
