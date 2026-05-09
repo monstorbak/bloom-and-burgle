@@ -16,6 +16,11 @@ local RGB = {
 	AetherCyan       = { 79,  227, 255 },
 	ValveRed         = { 193, 60,  42  },
 	GoggleGold       = { 232, 197, 71  },
+	-- BAB-MARKETPLACE-NPC-ROTATION extension: signature colors for Hexerine
+	-- "Stitches" (alchemy witch) and Sky Captain Verda (airship pilot). Both
+	-- chosen to coexist with the original 9 — not compete for visual weight.
+	WitchVellum      = { 88,  50,  110 },  -- deep aubergine for Hexerine's robes/alembic backing
+	SkyCaptainNavy   = { 40,  80,  110 },  -- weathered teal-blue for Verda's flight coat
 }
 
 -- Color3 lookups
@@ -28,6 +33,8 @@ M.IronworkCharcoal = Color3.fromRGB(unpack(RGB.IronworkCharcoal))
 M.AetherCyan       = Color3.fromRGB(unpack(RGB.AetherCyan))
 M.ValveRed         = Color3.fromRGB(unpack(RGB.ValveRed))
 M.GoggleGold       = Color3.fromRGB(unpack(RGB.GoggleGold))
+M.WitchVellum      = Color3.fromRGB(unpack(RGB.WitchVellum))
+M.SkyCaptainNavy   = Color3.fromRGB(unpack(RGB.SkyCaptainNavy))
 
 -- Lerp helper for the "0-25% toward white/black" rule. Anything outside that
 -- band must be flagged in code review.
