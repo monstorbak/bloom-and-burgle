@@ -42,6 +42,12 @@ scripts/debug/captures/
 # Claude Code per-machine state (committed: .claude/settings.json)
 .claude/settings.local.json
 
+# Claude Code worktrees (per-machine, not part of project)
+.claude/worktrees/
+
+# Per-user private skill bundle (Anthropic Cowork-style); never project-tracked
+.agents/
+
 # Chat history mirror — regenerable from ~/.claude/projects/<encoded>/<id>.jsonl
 # via scripts/history/export_history.py. Don't commit (it would churn every turn).
 Bloom&Burgle_ChatHistory.md
