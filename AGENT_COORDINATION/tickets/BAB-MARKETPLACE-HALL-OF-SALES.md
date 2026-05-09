@@ -1,8 +1,9 @@
 # BAB-MARKETPLACE-HALL-OF-SALES: persistent leaderboard of all-time biggest sells
 
 **Owner:** unassigned
-**State:** inbox (design — capture only)
-**Priority:** P2 (virality + competitive layer)
+**State:** **superseded** — folded into [`BAB-PHASE-4-VISIT-FRIEND-AND-TROPHY-HALL.md`](BAB-PHASE-4-VISIT-FRIEND-AND-TROPHY-HALL.md)
+**Priority:** n/a — see successor ticket
+**Successor:** Phase 4's Trophy Hall includes Hall of Sales as one of 4 plaques (Hall of Sales, Mythic Hatchers, Plot Champions, Class Loyalty). Consolidating into a single physical hall keeps the Cogworks plaza from getting cluttered and reuses the same DataStore + MessagingService infrastructure.
 
 ## Hook (one-line pitch)
 

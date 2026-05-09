@@ -115,6 +115,50 @@ behavior — escape just despawns silently with a steam-puff). We need
 a recognizable asset moment and a liability moment). Open question:
 catalog is in this ticket as a follow-on table.
 
+### Plot Defense Layer (folded in from BAB-COMBAT-LATER, 2026-05-08)
+
+Behaviors can target **raiders** in addition to plot pods. When a
+non-owner enters the plot's bounding region (per `PlotManager` slot
+geometry), liability behaviors that have a `targetsRaiders = true`
+flag retarget from "damage own pods" to "damage raider":
+
+```luau
+-- Extension to EscapeBehavior shape:
+type EscapeBehavior = {
+    name: string,
+    durationSeconds: number,
+    sfx: string?,
+    activate: (player: Player, plot: Model) -> (() -> ())?,
+    -- NEW: when true, behavior also retargets raiders inside the plot
+    -- region. Damage values + cooldowns are part of the behavior's own
+    -- internal logic, not a global combat layer.
+    targetsRaiders: boolean?,
+}
+```
+
+This means the entire "combat" surface — players defending their land,
+raiders eating consequences for stealing — lives **inside the existing
+critter behavior catalog**, not a separate combat module. No weapons
+system, no health bars, no PvP-zone gating. The defending mechanic IS
+the escaped-liability mechanic.
+
+Defense behavior examples (extending the seed entries):
+
+| Species | Class | Affinity | Behavior |
+|---|---|---|---|
+| coal_drake | knight (liability) | + targetsRaiders | "Drake Strafe v2: as before, but if a raider is on the plot, every 8s the drake instead torches them — 15 HP damage + a knockback. Cooldown 8s per raider." |
+| iron_hydra | tinkerer (liability) | + targetsRaiders | "Hydra Coil: raider takes 5 HP/sec while inside the plot region. Owner unaffected. Behavior expires after `durationSeconds` regardless." |
+| fire_salamander | knight (liability) | + targetsRaiders | "Salamander Trail: leaves fire patches behind itself; raider takes 8 HP per second standing on a patch. 4-second patch lifetime." |
+
+Asset behaviors do NOT target raiders (asset = good for owner; the
+*owner* benefits, not bystanders). Neutral behaviors are silent.
+
+This eliminates the need for a separate combat ticket while preserving
+the user's stated direction ("players must be vigilant to protect their
+land"). Future "lethal critter upgrade" mechanic (deferred) will let
+players intentionally cultivate liability behaviors as defensive layers
+— turning a class-mismatch into a pet defense system.
+
 ### Persistence
 
 Escape state survives logout. New `data.plot.escapes` array on the
@@ -191,10 +235,12 @@ The escape timer is cancelled by:
   in close succession. Do behaviors stack or queue? Proposed: stack
   with diminishing returns (each additional same-behavior copy at 70%
   effect of the prior).
-3. **Combat hooks.** §11 of Design Spec describes a combat system. Does
-  a liability behavior count as combat for the purposes of upgrade
-  durability damage (§10.4 + §11.4)? Proposed: yes — liability ferals
-  damage upgrade slots, asset ferals do not.
+3. **Combat hooks.** §11 of Design Spec describes a combat system. Per
+  the 2026-05-08 direction shift (see `BAB-COMBAT-LATER.md`), the
+  combat layer is **folded into this ticket** via the Plot Defense
+  Layer above — liability behaviors with `targetsRaiders = true`
+  damage attackers. No separate combat module. Liability ferals damage
+  upgrade slots; asset ferals do not (resolved).
 4. **Cosmetic/SFX inventory.** Each escape needs at least 1 SFX. §4.1
   audio library doesn't list "feral spawn" or "drake fire". File a
   follow-on for audio design.
@@ -212,3 +258,6 @@ The escape timer is cancelled by:
 ## Log
 
 - 2026-05-08 — User direction shift; Claude drafted ticket.
+- 2026-05-08 — Plot Defense Layer folded in from the deferred combat plan
+  (see `BAB-COMBAT-LATER.md`). Combat lives entirely inside this ticket's
+  behavior catalog now — `targetsRaiders` flag on liability behaviors.
