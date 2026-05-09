@@ -1,14 +1,11 @@
 --!strict
 -- MarketplaceUI — client-side UI for the marketplace place.
 --
--- BAB-MARKETPLACE-HUB scaffolding (2026-05-08). Built using Fusion (the
--- precedent from PR #7 / P1.3). v1 ships:
---   1. Welcome toast on join ("you're at the marketplace; merchants pay
---      better, return portal is south")
---   2. Brass Bart sell modal (triggered by the merchant's quote event)
---
--- Defer for follow-on PRs: full merchant-personality dialogue, P2P
--- trade UI for booth interactions, asset/liability arbitrage hint.
+-- BAB-MARKETPLACE-NPC-ROTATION (2026-05-08): updated from the v1 Brass-Bart-
+-- only flow to handle any NPC's quote (Bart, Hexerine, Verda) using the
+-- generic payload from MerchantSellFlow. Rich UI hints (asset/liability
+-- badges, multiplier breakdown tooltip) defer to Phase 3 / next PR; this
+-- ships a working sell flow for all 3 NPCs.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +24,8 @@ local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 local MarketplaceSellRE = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("MarketplaceSell") :: RemoteEvent
 
+-- ── Helpers ──────────────────────────────────────────────────────────
+
 local function fmt(n: number): string
 	n = math.floor(n)
 	if n < 1000 then return tostring(n) end
@@ -37,7 +36,15 @@ local function fmt(n: number): string
 	return string.format("%.2fM", n / 1_000_000)
 end
 
--- ── Welcome toast ────────────────────────────────────────────────────
+local function fmtMult(m: number): string
+	-- 1.235 → "1.2×"; 3.0 → "3×"
+	if math.abs(m - math.floor(m)) < 0.05 then
+		return string.format("%d×", math.floor(m + 0.5))
+	end
+	return string.format("%.1f×", m)
+end
+
+-- ── Welcome toast (unchanged from v1) ────────────────────────────────
 local function showWelcome()
 	local toast = Instance.new("ScreenGui")
 	toast.Name = "MarketplaceWelcome"
@@ -59,7 +66,7 @@ local function showWelcome()
 	lbl.Size = UDim2.new(1, -16, 1, -10)
 	lbl.Position = UDim2.fromOffset(8, 5)
 	lbl.BackgroundTransparency = 1
-	lbl.Text = "💰 Welcome to the Marketplace — merchants pay better than your Pawn Forge"
+	lbl.Text = "💰 Welcome to the Marketplace — three merchants, three different prices"
 	lbl.TextColor3 = Color3.fromRGB(245, 240, 230)
 	lbl.Font = Enum.Font.FredokaOne
 	lbl.TextScaled = true
@@ -67,7 +74,7 @@ local function showWelcome()
 	lbl.Parent = panel
 	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 18; tx.Parent = lbl
 
-	-- Slide in, hold 4s, fade out.
+	-- Slide in, hold, fade out.
 	panel.Position = UDim2.fromScale(0.5, -0.1)
 	TweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
 		Position = UDim2.fromScale(0.5, 0.05),
@@ -82,28 +89,56 @@ local function showWelcome()
 	end)
 end
 
-task.delay(1.0, showWelcome)  -- give the player a moment to spawn first
+task.delay(1.0, showWelcome)
 
--- ── Brass Bart sell modal ────────────────────────────────────────────
--- Reactive cells driven by MarketplaceSellRE quotes.
+-- ── NPC sell modal — generic across Bart / Hexerine / Verda ─────────
 local quoteVisible = Value(false)
 local quoteData: any = Value(nil)
 
-local quoteText = Computed(function()
+local titleText = Computed(function()
 	local d = quoteData:get()
 	if not d then return "" end
-	return string.format("Brass Bart offers %s gold for your %d critter%s.",
-		"$" .. fmt(d.quotedPayout),
-		d.count or 0,
-		((d.count or 0) == 1) and "" or "s")
+	return string.format("%s %s", d.emoji or "•", string.upper(d.displayName or "Merchant"))
 end, { quoteData })
 
-local mutationHint = Computed(function()
+local dialogueText = Computed(function()
+	local d = quoteData:get()
+	if not d then return "" end
+	return d.dialogueLine or ""
+end, { quoteData })
+
+local bodyText = Computed(function()
+	local d = quoteData:get()
+	if not d then return "" end
+	local mult = d.avgMultiplier or 1.0
+	return string.format("%s offers %s gold for your %d critter%s. (avg %s)",
+		d.displayName or "The merchant",
+		"$" .. fmt(d.quotedPayout or 0),
+		d.count or 0,
+		((d.count or 0) == 1) and "" or "s",
+		fmtMult(mult))
+end, { quoteData })
+
+local mutationText = Computed(function()
 	local d = quoteData:get()
 	if not d or not d.mutations or d.mutations == 0 then return "" end
 	return string.format("✨ %d mutated critter%s included.",
 		d.mutations,
 		(d.mutations == 1) and "" or "s")
+end, { quoteData })
+
+local skipText = Computed(function()
+	local d = quoteData:get()
+	if not d or not d.skippedCount or d.skippedCount == 0 then return "" end
+	return string.format("⚠ %d contraband critter%s skipped (scrap them instead).",
+		d.skippedCount,
+		(d.skippedCount == 1) and "" or "s")
+end, { quoteData })
+
+local specialText = Computed(function()
+	local d = quoteData:get()
+	if not d or not d.todaysSpecialName then return "" end
+	return string.format("🌟 Today's special: %s — bonus 2× when sold.", d.todaysSpecialName)
 end, { quoteData })
 
 local function closeQuote()
@@ -112,13 +147,15 @@ local function closeQuote()
 end
 
 local function confirm()
-	MarketplaceSellRE:FireServer("confirm_brass_bart")
+	local d = quoteData:get()
+	if not d then return end
+	MarketplaceSellRE:FireServer("confirm", d.npcId)
 	closeQuote()
 end
 
--- Build modal (reactive, mounted once)
+-- Build modal
 local quoteModal = New "ScreenGui" {
-	Name = "BrassBartQuote",
+	Name = "MerchantQuote",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
 	Enabled = quoteVisible,
@@ -142,7 +179,7 @@ local quoteModal = New "ScreenGui" {
 			Name = "Panel",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(440, 280),
+			Size = UDim2.fromOffset(480, 360),
 			BackgroundColor3 = Color3.fromRGB(40, 36, 32),
 			BorderSizePixel = 0,
 			[Children] = {
@@ -154,18 +191,30 @@ local quoteModal = New "ScreenGui" {
 					Size = UDim2.new(1, -32, 0, 50),
 					Position = UDim2.fromOffset(16, 16),
 					BackgroundTransparency = 1,
-					Text = "⚙ BRASS BART",
+					Text = titleText,
 					TextColor3 = Color3.fromRGB(232, 197, 71),
 					Font = Enum.Font.FredokaOne,
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Left,
 				},
 				New "TextLabel" {
-					Name = "Body",
-					Size = UDim2.new(1, -32, 0, 70),
-					Position = UDim2.fromOffset(16, 80),
+					Name = "Dialogue",
+					Size = UDim2.new(1, -32, 0, 36),
+					Position = UDim2.fromOffset(16, 70),
 					BackgroundTransparency = 1,
-					Text = quoteText,
+					Text = dialogueText,
+					TextColor3 = Color3.fromRGB(200, 200, 210),
+					Font = Enum.Font.GothamItalic,
+					TextScaled = true,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
+				},
+				New "TextLabel" {
+					Name = "Body",
+					Size = UDim2.new(1, -32, 0, 56),
+					Position = UDim2.fromOffset(16, 116),
+					BackgroundTransparency = 1,
+					Text = bodyText,
 					TextColor3 = Color3.fromRGB(245, 240, 230),
 					Font = Enum.Font.GothamBold,
 					TextScaled = true,
@@ -174,12 +223,34 @@ local quoteModal = New "ScreenGui" {
 				},
 				New "TextLabel" {
 					Name = "Mutation",
-					Size = UDim2.new(1, -32, 0, 24),
-					Position = UDim2.fromOffset(16, 156),
+					Size = UDim2.new(1, -32, 0, 22),
+					Position = UDim2.fromOffset(16, 178),
 					BackgroundTransparency = 1,
-					Text = mutationHint,
+					Text = mutationText,
 					TextColor3 = Color3.fromRGB(120, 220, 255),
 					Font = Enum.Font.Gotham,
+					TextScaled = true,
+					TextXAlignment = Enum.TextXAlignment.Left,
+				},
+				New "TextLabel" {
+					Name = "Skip",
+					Size = UDim2.new(1, -32, 0, 22),
+					Position = UDim2.fromOffset(16, 204),
+					BackgroundTransparency = 1,
+					Text = skipText,
+					TextColor3 = Color3.fromRGB(220, 130, 100),
+					Font = Enum.Font.Gotham,
+					TextScaled = true,
+					TextXAlignment = Enum.TextXAlignment.Left,
+				},
+				New "TextLabel" {
+					Name = "Special",
+					Size = UDim2.new(1, -32, 0, 22),
+					Position = UDim2.fromOffset(16, 230),
+					BackgroundTransparency = 1,
+					Text = specialText,
+					TextColor3 = Color3.fromRGB(232, 197, 71),
+					Font = Enum.Font.GothamBold,
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Left,
 				},
@@ -187,8 +258,8 @@ local quoteModal = New "ScreenGui" {
 				-- Confirm button
 				New "TextButton" {
 					Name = "Confirm",
-					Size = UDim2.fromOffset(180, 56),
-					Position = UDim2.new(0.5, -190, 1, -76),
+					Size = UDim2.fromOffset(200, 56),
+					Position = UDim2.new(0.5, -210, 1, -76),
 					BackgroundColor3 = Color3.fromRGB(200, 146, 63),
 					Text = "💰 SELL",
 					TextColor3 = Color3.new(0, 0, 0),
@@ -201,7 +272,7 @@ local quoteModal = New "ScreenGui" {
 				-- Decline
 				New "TextButton" {
 					Name = "Decline",
-					Size = UDim2.fromOffset(180, 56),
+					Size = UDim2.fromOffset(200, 56),
 					Position = UDim2.new(0.5, 10, 1, -76),
 					BackgroundColor3 = Color3.fromRGB(60, 50, 50),
 					Text = "Maybe later",
@@ -222,9 +293,9 @@ quoteModal.Parent = playerGui
 MarketplaceSellRE.OnClientEvent:Connect(function(action, data)
 	if action == "quote" then
 		if typeof(data) ~= "table" then return end
-		if (data.quotedPayout or 0) <= 0 then
-			-- Player has nothing to sell; brief toast instead of the full modal.
-			showWelcome()  -- repurpose the welcome toast UI, but with different text
+		if (data.quotedPayout or 0) <= 0 and (data.skippedCount or 0) == 0 then
+			-- Player has nothing to sell at all; brief toast instead of modal.
+			showWelcome()
 			return
 		end
 		quoteData:set(data)
@@ -238,9 +309,9 @@ MarketplaceSellRE.OnClientEvent:Connect(function(action, data)
 		local lbl = Instance.new("TextLabel")
 		lbl.AnchorPoint = Vector2.new(0.5, 0.5)
 		lbl.Position = UDim2.fromScale(0.5, 0.5)
-		lbl.Size = UDim2.fromOffset(420, 90)
+		lbl.Size = UDim2.fromOffset(460, 90)
 		lbl.BackgroundTransparency = 1
-		lbl.Text = string.format("💰 +$%s from Brass Bart!", fmt(data.payout or 0))
+		lbl.Text = string.format("💰 +$%s from %s!", fmt(data.payout or 0), data.displayName or "the merchant")
 		lbl.TextColor3 = Color3.fromRGB(232, 197, 71)
 		lbl.TextStrokeTransparency = 0
 		lbl.Font = Enum.Font.FredokaOne
@@ -255,4 +326,4 @@ MarketplaceSellRE.OnClientEvent:Connect(function(action, data)
 	end
 end)
 
-print("[BAB-LIFE] MarketplaceUI online")
+print("[BAB-LIFE] MarketplaceUI online (NPC-rotation client)")
