@@ -16,6 +16,12 @@ set -e
 export PATH="$HOME/.rokit/bin:$PATH"
 cd "$(dirname "$0")/.."
 
+# Auto-source .env so the build inherits BB_TELEMETRY_* values. See
+# publish.sh for the full footgun rationale (2026-05-09 incident).
+if [ -f .env ]; then
+    set -a; . ./.env; set +a
+fi
+
 VERSION_TYPE="${1:-Published}"
 RBXLX="Marketplace.rbxlx"
 

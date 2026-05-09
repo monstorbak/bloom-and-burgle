@@ -15,6 +15,15 @@ export PATH="$HOME/.rokit/bin:$PATH"
 
 cd "$(dirname "$0")/.."
 
+# Auto-source .env so callers don't have to remember `set -a; source .env;
+# set +a` before every invocation. Without this, the build silently
+# generates an empty TelemetryConfig.luau and ships a place with telemetry
+# disabled — a footgun discovered the hard way on 2026-05-09 (Hatchery v65
+# + Marketplace v5 went live with empty config, dropped every event).
+if [ -f .env ]; then
+    set -a; . ./.env; set +a
+fi
+
 VERSION_TYPE="${1:-Published}"
 RBXLX="BloomAndBurgle.rbxlx"
 
