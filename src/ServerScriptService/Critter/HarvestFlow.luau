@@ -73,6 +73,52 @@ function HarvestFlow.harvestPlanter(player: Player, planter: BasePart): boolean
 		}, player)
 	end)
 
+	-- BAB-PHASE-3-MYTHIC-CEREMONY-AND-ADVISORY: fire the cinematic on
+	-- Mythic-rarity hatches. "Mythic" = celestial mutation roll (1×100
+	-- value) OR a species with rarity == "Mythic". Phase 1 set up the
+	-- CritterCameraHooks client-side handler; this is the server-side
+	-- trigger.
+	local isMythic = (mutationId == "celestial") or (species.rarity == "Mythic")
+	if isMythic then
+		local mutDisplayName: string? = nil
+		local mutEmoji: string? = nil
+		if mutationId ~= "" then
+			for _, m in CritterData.MUTATIONS do
+				if m.id == mutationId then
+					mutDisplayName = m.displayName
+					mutEmoji = m.emoji
+					break
+				end
+			end
+		end
+		local remotes = ReplicatedStorage:FindFirstChild("RemoteEvents")
+		local ceremonyRE = remotes and remotes:FindFirstChild("CritterCeremony") :: RemoteEvent?
+		if ceremonyRE then
+			pcall(function()
+				ceremonyRE:FireClient(player, {
+					type = "mythic_hatch",
+					position = planter.Position + Vector3.new(0, 5, 0),
+					duration = 1.6,
+					speciesId = speciesId,
+					speciesName = species.displayName,
+					speciesEmoji = species.emoji,
+					mutationId = mutationId,
+					mutationName = mutDisplayName,
+					mutationEmoji = mutEmoji,
+				})
+			end)
+		end
+		-- Telemetry: separate event from harvest_decision to make Mythic
+		-- moments easy to filter in the funnel.
+		pcall(function()
+			Telemetry.track("mythic_hatch", {
+				species = speciesId,
+				mutationId = mutationId,
+				class = player:GetAttribute("Class"),
+			}, player)
+		end)
+	end
+
 	-- Fire popup to client. We bind to a local first because Luau's parser
 	-- treats a line starting with `(` as a continuation of the previous line
 	-- (the classic ambiguous-call gotcha). Letting Roblox's strict-mode

@@ -77,21 +77,35 @@ local rarityColor = Computed(function()
 	return Color3.fromRGB(220, 220, 220)
 end, { current })
 
--- Class affinity advisory (the "asset / liability / neutral" hint per
--- CritterData header). Empty string if no class assigned yet.
+-- Class affinity advisory — BAB-PHASE-3-MYTHIC-CEREMONY-AND-ADVISORY upgraded
+-- this from `affinityFor` (returns kind only) to `advisoryFor` (returns the
+-- full class-aware copy "✓ Hexers thrive with Patina Toads. Strong asset
+-- if nurtured."). The richer template makes the asset/liability moat
+-- visible at the harvest decision point — the spec's brand differentiator.
 local affinityText = Computed(function()
 	local d = current:get()
 	if not d then return "" end
 	local class = localPlayer:GetAttribute("Class")
 	if not class then return "" end
-	if typeof(CritterData) ~= "table" or typeof((CritterData :: any).affinityFor) ~= "function" then
+	if typeof(CritterData) ~= "table" or typeof((CritterData :: any).advisoryFor) ~= "function" then
 		return ""
 	end
-	local affinity = (CritterData :: any).affinityFor(d.species, class)
-	if affinity == "asset" then return "✨ asset for your class"
-	elseif affinity == "liability" then return "⚠ liability for your class"
+	return (CritterData :: any).advisoryFor(d.species, class)
+end, { current })
+
+-- Class-accent color for the advisory line. Asset = gold, liability =
+-- ember-orange, neutral = subtle gray. Pulled from the same affinity
+-- check so the visual + copy stay aligned.
+local affinityColor = Computed(function()
+	local d = current:get()
+	if not d then return Color3.fromRGB(180, 180, 180) end
+	local class = localPlayer:GetAttribute("Class")
+	if not class then return Color3.fromRGB(180, 180, 180) end
+	local kind = (CritterData :: any).affinityFor(d.species, class)
+	if kind == "asset" then return Color3.fromRGB(232, 197, 71)         -- GoggleGold
+	elseif kind == "liability" then return Color3.fromRGB(255, 106, 31) -- EmberOrange
 	end
-	return ""
+	return Color3.fromRGB(180, 180, 180)
 end, { current })
 
 -- ── Modal markup ───────────────────────────────────────────────────────────
@@ -163,17 +177,21 @@ local screenGui = New "ScreenGui" {
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Left,
 				},
-				-- Class-affinity advisory
+				-- Class-affinity advisory — Phase 3 upgraded to the richer
+				-- advisoryFor() template ("✓ Hexers thrive with Patina Toads.
+				-- Strong asset if nurtured."). Color is class-accent: gold for
+				-- asset, ember for liability, gray for neutral.
 				New "TextLabel" {
 					Name = "Affinity",
-					Size = UDim2.new(1, -32, 0, 28),
+					Size = UDim2.new(1, -32, 0, 56),
 					Position = UDim2.fromOffset(16, 124),
 					BackgroundTransparency = 1,
 					Text = affinityText,
-					TextColor3 = Color3.fromRGB(180, 180, 180),
-					Font = Enum.Font.Gotham,
+					TextColor3 = affinityColor,
+					Font = Enum.Font.GothamBold,
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Left,
+					TextWrapped = true,
 				},
 				-- Dismiss button
 				New "TextButton" {

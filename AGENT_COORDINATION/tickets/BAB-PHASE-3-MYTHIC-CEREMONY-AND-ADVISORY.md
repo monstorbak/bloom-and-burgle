@@ -126,3 +126,27 @@ Test: `tests/critter/advisory_copy.test.luau` asserts:
 ## Log
 
 - 2026-05-08 — Direction shift session; folded into prioritized roadmap. Drafted ticket.
+- 2026-05-09 — **Phase 3 shipped**.
+  - **Mythic ceremony fire** (`HarvestFlow.luau`): on harvest, if mutation
+    rolls celestial OR species.rarity == "Mythic", fire CritterCeremony
+    with type="mythic_hatch" + payload (position, duration, speciesName,
+    speciesEmoji, mutationName, mutationEmoji). Phase 1 set up the
+    client-side seam; Phase 3 lit it up. Also fires `mythic_hatch`
+    Telemetry separately from `harvest_decision` for funnel filtering.
+  - **Cinematic camera ceremony** (`CritterCameraHooks.client.luau`):
+    - t+0.0s screen flash (60% alpha → 0 over 0.4s)
+    - t+0.0s startOrbit + bloom 1.4× ramp (Phase 1 already shipped these)
+    - t+0.0s lockWalkSpeed for duration+0.3s (so player can't walk off-frame)
+    - t+0.1s vertical light pillar at the planter, mutation-tinted (Celestial=sky-blue, Ember=orange, etc)
+    - t+2.0s mythic-tinted toast: "💫 CELESTIAL Coal Drake hatched!"
+  - **HarvestModal advisory upgrade**: `affinityFor` (returned kind only)
+    → `advisoryFor` (returns full template "✓ Hexers thrive with Patina
+    Toads. Strong asset if nurtured."). New `affinityColor` reactive cell
+    drives the line color: gold for asset, ember for liability, gray for
+    neutral. Modal panel grew from 280→ 280px height (advisory line is
+    now 56px instead of 28px to accommodate wrap).
+  - **Tests**: `tests/critter/advisory_copy.test.luau` (361 cases — all
+    60 species×class cells × marker discipline + format hygiene + length
+    invariants). `scripts/test/critter-mythic-static.sh` (4 sections, 14
+    structural checks).
+  - All 8 pre-existing tests still green. Build: 372K → 376K.

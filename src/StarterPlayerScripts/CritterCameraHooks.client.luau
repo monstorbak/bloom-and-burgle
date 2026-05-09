@@ -130,6 +130,136 @@ end
 -- the orbit camera is the freeze; the character may still walk in place
 -- below the camera but the visual focus is on the critter.
 
+-- Screen flash overlay — opens at 60% alpha, decays over 0.4s. Per the
+-- Phase 3 ticket spec ("t=0.0s screen overlay flashes white at 60% alpha
+-- for 0.15s, decays").
+local function screenFlash()
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "MythicFlash"
+	sg.ResetOnSpawn = false
+	sg.IgnoreGuiInset = true
+	sg.Parent = playerGui
+	local f = Instance.new("Frame")
+	f.Size = UDim2.fromScale(1, 1)
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
+	f.BackgroundTransparency = 0.4
+	f.BorderSizePixel = 0
+	f.Parent = sg
+	TweenService:Create(f, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = 1,
+	}):Play()
+	task.delay(0.5, function() if sg.Parent then sg:Destroy() end end)
+end
+
+-- Vertical light pillar at the planter location. Tinted by mutation color
+-- when known (Celestial = sky-blue per CritterData.MUTATIONS).
+local function lightPillar(focus: Vector3, mutationId: string?, duration: number)
+	local color = Color3.fromRGB(153, 230, 255)  -- Celestial default
+	if mutationId == "ember" then color = Color3.fromRGB(255, 106, 31)
+	elseif mutationId == "aether" then color = Color3.fromRGB(79, 227, 255)
+	elseif mutationId == "gilded" then color = Color3.fromRGB(232, 197, 71)
+	elseif mutationId == "polished" then color = Color3.fromRGB(255, 245, 200)
+	end
+
+	local pillar = Instance.new("Part")
+	pillar.Name = "MythicPillar"
+	pillar.Anchored = true
+	pillar.CanCollide = false
+	pillar.CanQuery = false
+	pillar.CanTouch = false
+	pillar.Material = Enum.Material.Neon
+	pillar.Color = color
+	pillar.Size = Vector3.new(2.4, 60, 2.4)
+	pillar.Transparency = 0.2
+	pillar.Position = focus + Vector3.new(0, 30, 0)
+	pillar.Parent = workspace
+
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 30
+	light.Brightness = 4
+	light.Parent = pillar
+
+	-- Fade out at end of ceremony.
+	task.delay(duration - 0.3, function()
+		if not pillar.Parent then return end
+		TweenService:Create(pillar, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Transparency = 1,
+		}):Play()
+		task.delay(0.5, function() if pillar.Parent then pillar:Destroy() end end)
+	end)
+end
+
+-- Lock the local character's walk speed during the ceremony so the player
+-- can't walk off-screen mid-freeze. Restores after duration.
+local function lockWalkSpeed(duration: number)
+	local char = localPlayer.Character
+	if not char then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	local previous = hum.WalkSpeed
+	hum.WalkSpeed = 0
+	task.delay(duration, function()
+		if hum.Parent then hum.WalkSpeed = previous end
+	end)
+end
+
+-- Mythic-tinted toast. Fires at t+2.0s ("💫 CELESTIAL Coal Drake hatched!").
+-- Held for 4s then fades.
+local function mythicToast(payload: any)
+	local sg = Instance.new("ScreenGui")
+	sg.Name = "MythicToast"
+	sg.ResetOnSpawn = false
+	sg.IgnoreGuiInset = true
+	sg.Parent = playerGui
+	local panel = Instance.new("Frame")
+	panel.AnchorPoint = Vector2.new(0.5, 0)
+	panel.Position = UDim2.fromScale(0.5, 0.08)
+	panel.Size = UDim2.fromOffset(560, 90)
+	panel.BackgroundColor3 = Color3.fromRGB(40, 36, 32)
+	panel.BackgroundTransparency = 0.05
+	panel.BorderSizePixel = 0
+	panel.Parent = sg
+	local cor = Instance.new("UICorner"); cor.CornerRadius = UDim.new(0, 12); cor.Parent = panel
+	local stk = Instance.new("UIStroke")
+	stk.Color = Color3.fromRGB(232, 197, 71)  -- GoggleGold
+	stk.Thickness = 3
+	stk.Parent = panel
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -16, 1, -10)
+	lbl.Position = UDim2.fromOffset(8, 5)
+	lbl.BackgroundTransparency = 1
+	local mutPart = ""
+	if payload.mutationName then
+		mutPart = string.format("%s ", string.upper(payload.mutationName))
+	end
+	lbl.Text = string.format("%s %s%s hatched!",
+		payload.mutationEmoji or "💫",
+		mutPart,
+		payload.speciesName or "Critter")
+	lbl.TextColor3 = Color3.fromRGB(232, 197, 71)
+	lbl.TextStrokeTransparency = 0
+	lbl.Font = Enum.Font.FredokaOne
+	lbl.TextScaled = true
+	lbl.Parent = panel
+	local sz = Instance.new("UITextSizeConstraint"); sz.MaxTextSize = 28; sz.Parent = lbl
+
+	-- Slide in from above + shimmer scale.
+	panel.Position = UDim2.fromScale(0.5, -0.1)
+	TweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.fromScale(0.5, 0.08),
+	}):Play()
+	task.delay(4.0, function()
+		if not sg.Parent then return end
+		TweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Position = UDim2.fromScale(0.5, -0.1),
+		}):Play()
+		task.wait(0.6)
+		if sg.Parent then sg:Destroy() end
+	end)
+end
+
 local function ceremonyMythic(payload: any)
 	if ceremonyActive then return end
 	ceremonyActive = true
@@ -138,8 +268,22 @@ local function ceremonyMythic(payload: any)
 	local duration = (payload.duration :: number?) or 1.6
 	if not position then ceremonyActive = false; return end
 
+	-- t+0.0s : screen flash + camera orbit + bloom ramp + walk lock
+	screenFlash()
 	startOrbit(position, duration)
 	pulseBloom(1.4, duration - 0.5, 0.4)
+	lockWalkSpeed(duration + 0.3)
+
+	-- t+0.1s : light pillar at the pod (mutation-tinted)
+	task.delay(0.1, function()
+		lightPillar(position, payload.mutationId, duration)
+	end)
+
+	-- t+2.0s : mythic-tinted toast (after the freeze ends, gives the
+	-- player time to catch the rig in screenshot).
+	task.delay(2.0, function()
+		mythicToast(payload)
+	end)
 
 	task.delay(duration, function() ceremonyActive = false end)
 end
