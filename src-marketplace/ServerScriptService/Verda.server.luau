@@ -1,10 +1,10 @@
 --!strict
--- BrassBart — gruff dwarf-coded mech-trader NPC, central stall.
+-- Sky Captain Verda — cocky airship-pilot NPC, east stall.
 --
--- BAB-MARKETPLACE-NPC-ROTATION (2026-05-08). Refactored from the v1
--- single-multiplier scaffold to consume the shared MerchantSellFlow helper.
--- Pricing, telemetry, and rate-limiting all flow through MerchantSellFlow.
--- This script only owns Bart's VISUALS and his stall geometry.
+-- BAB-MARKETPLACE-NPC-ROTATION (2026-05-08).
+-- Visual identity: SkyCaptainNavy flight coat, Brass goggles+rank, ValveRed
+-- airship-cape detail. Pays liability premium for winged species; scoffs at
+-- ground-bound stock at 0.8× base.
 
 local Workspace = game:GetService("Workspace")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -14,16 +14,16 @@ local BrandColors = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChi
 local MerchantPersonalities = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("MerchantPersonalities"))
 local MerchantSellFlow = require(ServerScriptService:WaitForChild("MerchantSellFlow"))
 
-local NPC_ID = "bart"
-local STALL_POSITION = Vector3.new(0, 4, -30)   -- north-center (was -30, -30 in v1)
+local NPC_ID = "verda"
+local STALL_POSITION = Vector3.new(30, 4, -30)   -- east of Bart
 local PROMPT_RADIUS = 8
 
 local personality = MerchantPersonalities.get(NPC_ID)
-assert(personality, "BrassBart: personality missing in MerchantPersonalities")
+assert(personality, "Verda: personality missing in MerchantPersonalities")
 
 -- ── Build stall ──────────────────────────────────────────────────────
 local stall = Instance.new("Model")
-stall.Name = "BrassBartStall"
+stall.Name = "VerdaStall"
 stall.Parent = Workspace
 
 -- Pad
@@ -37,24 +37,24 @@ pad.Size = Vector3.new(10, 1, 10)
 pad.Position = STALL_POSITION
 pad.Parent = stall
 
--- Brass-topped counter
+-- Counter — sky navy with brass trim feel
 local counter = Instance.new("Part")
 counter.Name = "Counter"
 counter.Anchored = true
 counter.CanCollide = true
 counter.Material = Enum.Material.Metal
-counter.Color = BrandColors.Brass
+counter.Color = BrandColors.SkyCaptainNavy
 counter.Size = Vector3.new(8, 3, 1.4)
 counter.Position = STALL_POSITION + Vector3.new(0, 1.7, -3)
 counter.Parent = stall
 
--- Sign over the counter
+-- Sign — gold lettering on navy field
 local sign = Instance.new("Part")
 sign.Name = "Sign"
 sign.Anchored = true
 sign.CanCollide = false
 sign.Material = Enum.Material.Metal
-sign.Color = BrandColors.Brass
+sign.Color = BrandColors.SkyCaptainNavy
 sign.Size = Vector3.new(7, 2, 0.5)
 sign.Position = STALL_POSITION + Vector3.new(0, 6, -4)
 sign.Parent = stall
@@ -68,23 +68,34 @@ local lbl = Instance.new("TextLabel")
 lbl.Size = UDim2.fromScale(1, 1)
 lbl.BackgroundTransparency = 1
 lbl.Text = personality.emoji .. " " .. personality.displayName:upper()
-lbl.TextColor3 = BrandColors.OilBlack
+lbl.TextColor3 = BrandColors.GoggleGold
 lbl.Font = Enum.Font.Antique
 lbl.TextScaled = true
 lbl.Parent = sgui
 
--- NPC body — charcoal column, brass head (same v1 stand-in; proper
--- character authoring is the BAB-NPC-CHARACTERS P2 task).
+-- NPC body — navy flight coat
 local npc = Instance.new("Part")
-npc.Name = "BrassBart"
+npc.Name = "Verda"
 npc.Anchored = true
 npc.CanCollide = false
-npc.Material = Enum.Material.Metal
-npc.Color = BrandColors.IronworkCharcoal
+npc.Material = Enum.Material.Fabric
+npc.Color = BrandColors.SkyCaptainNavy
 npc.Size = Vector3.new(2, 5, 2)
 npc.Position = STALL_POSITION + Vector3.new(0, 3, -4.5)
 npc.Parent = stall
 
+-- Cape — valve-red, drapes off the back
+local cape = Instance.new("Part")
+cape.Name = "Cape"
+cape.Anchored = true
+cape.CanCollide = false
+cape.Material = Enum.Material.Fabric
+cape.Color = BrandColors.ValveRed
+cape.Size = Vector3.new(2.6, 4.5, 0.2)
+cape.Position = STALL_POSITION + Vector3.new(0, 3.5, -5.4)
+cape.Parent = stall
+
+-- Head — brass-helmet read
 local head = Instance.new("Part")
 head.Name = "Head"
 head.Shape = Enum.PartType.Ball
@@ -96,9 +107,45 @@ head.Size = Vector3.new(1.6, 1.6, 1.6)
 head.Position = STALL_POSITION + Vector3.new(0, 6.2, -4.5)
 head.Parent = stall
 
+-- Goggles — gold rim halfway down the helmet
+local goggles = Instance.new("Part")
+goggles.Name = "Goggles"
+goggles.Anchored = true
+goggles.CanCollide = false
+goggles.Material = Enum.Material.Metal
+goggles.Color = BrandColors.GoggleGold
+goggles.Size = Vector3.new(1.7, 0.4, 0.4)
+goggles.Position = STALL_POSITION + Vector3.new(0, 6.2, -3.85)
+goggles.Parent = stall
+
+-- Mini airship — small docked dirigible above the stall as her signature
+-- silhouette. Two parts: hull (navy) + balloon (cream).
+local hull = Instance.new("Part")
+hull.Name = "AirshipHull"
+hull.Shape = Enum.PartType.Cylinder
+hull.Anchored = true
+hull.CanCollide = false
+hull.Material = Enum.Material.WoodPlanks
+hull.Color = BrandColors.SkyCaptainNavy
+hull.Size = Vector3.new(4, 1.2, 1.2)
+hull.Orientation = Vector3.new(0, 0, 90)
+hull.Position = STALL_POSITION + Vector3.new(3, 9, -3)
+hull.Parent = stall
+
+local balloon = Instance.new("Part")
+balloon.Name = "AirshipBalloon"
+balloon.Shape = Enum.PartType.Ball
+balloon.Anchored = true
+balloon.CanCollide = false
+balloon.Material = Enum.Material.Fabric
+balloon.Color = BrandColors.SteamCream
+balloon.Size = Vector3.new(4, 2.2, 2)
+balloon.Position = STALL_POSITION + Vector3.new(3, 10.6, -3)
+balloon.Parent = stall
+
 -- ── Prompt + wire to MerchantSellFlow ────────────────────────────────
 local prompt = Instance.new("ProximityPrompt")
-prompt.Name = "BrassBartPrompt"
+prompt.Name = "VerdaPrompt"
 prompt.ActionText = personality.actionText
 prompt.ObjectText = personality.objectText
 prompt.HoldDuration = 0
