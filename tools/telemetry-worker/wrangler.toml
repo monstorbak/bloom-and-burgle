@@ -13,7 +13,7 @@ compatibility_date = "2026-01-01"
 # created via `npx wrangler kv:namespace create BAB_TELEMETRY` (one-time,
 # replace placeholder).
 kv_namespaces = [
-  { binding = "BAB_TELEMETRY", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
+  { binding = "BAB_TELEMETRY", id = "b0d556638b91491f8c17604ba2443249" }
 ]
 
 # The ingest secret (BAB_INGEST_KEY) is set out-of-band via:
@@ -24,6 +24,5 @@ kv_namespaces = [
 [observability]
 enabled = true
 
-# Limits — defensive defaults. Adjust if scale demands.
-[limits]
-cpu_ms = 50
+# Note: explicit [limits].cpu_ms is a paid-plan feature. Free plan defaults to
+# 10ms, which is plenty for this Worker's KV-write-only path.

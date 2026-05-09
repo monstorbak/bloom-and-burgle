@@ -31,6 +31,9 @@ api-keys.json
 # Mantle state
 .mantle-state.yml
 
+# Wrangler local build/preview cache (telemetry Worker dev artifacts)
+tools/telemetry-worker/.wrangler/
+
 # Logs
 *.log
 
