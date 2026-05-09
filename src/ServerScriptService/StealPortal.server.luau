@@ -31,6 +31,9 @@ local BabPlaces = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild
 local PORTAL_POSITION = Vector3.new(-80, 4, 0)   -- mirror of (80, 4, 0)
 local PORTAL_TAG = "StealPortal"
 local TELEPORT_DEBOUNCE = 2.0
+-- Mirror of MarketplacePortal: longer cooldown on failure so .Touched-spam
+-- from multiple body parts can't burst-log the same teleport error.
+local FAILURE_BACKOFF = 30.0
 local ENTRY_FEE = 100
 
 local lastTeleport: { [number]: number } = {}
@@ -165,7 +168,10 @@ local function attemptTeleport(player: Player)
 	if not ok then
 		warn(("[StealPortal] teleport failed for %s: %s — refunding %dg"):format(player.Name, tostring(err), ENTRY_FEE))
 		cash.Value = cash.Value + ENTRY_FEE
-		lastTeleport[player.UserId] = nil
+		-- Extend debounce on failure so .Touched-spam doesn't burst-charge/
+		-- refund the fee dozens of times per second. Stepping out + back in
+		-- still works after FAILURE_BACKOFF.
+		lastTeleport[player.UserId] = now + (FAILURE_BACKOFF - TELEPORT_DEBOUNCE)
 	else
 		print(("[BAB-LIFE] %s → corridors (placeId=%d, fee=%d)"):format(player.Name, corridorsId, ENTRY_FEE))
 	end

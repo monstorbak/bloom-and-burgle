@@ -40,6 +40,11 @@ local PORTAL_TAG = "MarketplacePortal"
 -- Per-player teleport debounce (s). Higher than typical .5s because the
 -- TeleportAsync request itself is async and can take a moment.
 local TELEPORT_DEBOUNCE = 2.0
+-- On failure (TeleportAsync rejected, e.g. running in Studio Play, place
+-- not yet propagated, etc.), suppress retries for longer so the .Touched
+-- event firing from every body part doesn't spam dozens of identical
+-- error logs per second while the player stands in the portal.
+local FAILURE_BACKOFF = 30.0
 
 local lastTeleport: { [number]: number } = {}
 
@@ -175,8 +180,10 @@ local function attemptTeleport(player: Player)
 	end)
 	if not ok then
 		warn(("[MarketplacePortal] teleport failed for %s: %s"):format(player.Name, tostring(err)))
-		-- Reset debounce so the player can try again soon.
-		lastTeleport[player.UserId] = nil
+		-- Extend the debounce on failure so the .Touched spam from multiple
+		-- body parts doesn't generate a burst of identical errors. Stepping
+		-- out of the portal and back in still works after FAILURE_BACKOFF.
+		lastTeleport[player.UserId] = now + (FAILURE_BACKOFF - TELEPORT_DEBOUNCE)
 	else
 		print(("[BAB-LIFE] %s → marketplace (placeId=%d)"):format(player.Name, marketplaceId))
 	end
