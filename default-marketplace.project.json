@@ -17,10 +17,12 @@
       "$className": "ServerScriptService",
       "$path": "src-marketplace/ServerScriptService",
 
-      "Services":    { "$path": "src/ServerScriptService/Services.luau" },
-      "RateLimiter": { "$path": "src/ServerScriptService/RateLimiter.luau" },
-      "Telemetry":   { "$path": "src/ServerScriptService/Telemetry.luau" },
-      "DataStore":   { "$path": "src/ServerScriptService/DataStore.luau" }
+      "Services":        { "$path": "src/ServerScriptService/Services.luau" },
+      "RateLimiter":     { "$path": "src/ServerScriptService/RateLimiter.luau" },
+      "Telemetry":       { "$path": "src/ServerScriptService/Telemetry.luau" },
+      "TelemetryBoot":   { "$path": "src/ServerScriptService/TelemetryBoot.server.luau" },
+      "TelemetryConfig": { "$path": "src/ServerScriptService/TelemetryConfig.luau", "$ignoreUnknownInstances": true },
+      "DataStore":       { "$path": "src/ServerScriptService/DataStore.luau" }
     },
 
     "StarterPlayer": {

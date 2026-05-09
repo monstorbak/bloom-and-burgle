@@ -47,6 +47,16 @@ local function getEndpoint(): string
 	return ""
 end
 
+-- Read the ingest auth secret from Workspace.TelemetryIngestKey (StringValue).
+-- Sent as `X-Bab-Ingest-Key` on every flush. Empty/missing → header omitted
+-- and the Worker rejects with 401, which keeps malformed configs visible
+-- (the warn() in flushNow logs the failure instead of silently storing junk).
+local function getIngestKey(): string
+	local v = Workspace:FindFirstChild("TelemetryIngestKey")
+	if v and v:IsA("StringValue") then return v.Value end
+	return ""
+end
+
 -- ── Flush ──────────────────────────────────────────────────────────
 local function flushNow()
 	if #queue == 0 then return end
@@ -72,13 +82,21 @@ local function flushNow()
 		events = batch,
 	})
 
+	local headers: { [string]: string } = {
+		["Content-Type"] = "application/json",
+	}
+	local key = getIngestKey()
+	if key ~= "" then
+		headers["X-Bab-Ingest-Key"] = key
+	end
+
 	-- Run the HTTP request off the calling thread so flush() never blocks.
 	task.spawn(function()
 		local ok, err = pcall(function()
 			HttpService:RequestAsync({
 				Url = endpoint,
 				Method = "POST",
-				Headers = { ["Content-Type"] = "application/json" },
+				Headers = headers,
 				Body = payload,
 			})
 		end)
@@ -141,6 +159,23 @@ function Telemetry.setEndpoint(url: string)
 		v.Parent = Workspace
 	end
 	v.Value = url
+end
+
+-- Set the ingest auth key at runtime. Sent as `X-Bab-Ingest-Key` header
+-- on every flush. Stored in Workspace.TelemetryIngestKey StringValue so
+-- it's discoverable from `dbg state` and live-overridable for hotfixes.
+function Telemetry.setIngestKey(key: string)
+	local existing = Workspace:FindFirstChild("TelemetryIngestKey")
+	local v: StringValue
+	if existing and existing:IsA("StringValue") then
+		v = existing
+	else
+		if existing then existing:Destroy() end
+		v = Instance.new("StringValue")
+		v.Name = "TelemetryIngestKey"
+		v.Parent = Workspace
+	end
+	v.Value = key
 end
 
 -- ── Periodic flush + lifecycle hooks ───────────────────────────────

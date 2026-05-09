@@ -16,6 +16,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 local CritterVisuals = require(ServerScriptService:WaitForChild("CritterVisuals") :: ModuleScript)
 local CritterRegistry = require(script.Parent:WaitForChild("CritterRegistry") :: ModuleScript)
+local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript) :: any
 
 -- The harvest-popup RemoteEvent is created lazily here so the module is
 -- self-sufficient (no PlantHandler.server.luau to make it). Idempotent:
@@ -49,6 +50,22 @@ function HarvestFlow.harvestPlanter(player: Player, planter: BasePart): boolean
 	local key = speciesId .. ":" .. mutationId
 	CritterRegistry.addToInventory(player, key, 1)
 	player:SetAttribute("PlantsHarvested", (player:GetAttribute("PlantsHarvested") or 0) + 1)
+
+	-- ADR-3 telemetry. Per the eval's 10 launch events, harvest_decision
+	-- captures the moment a player commits a critter to their stash —
+	-- the funnel point between pod_ripened and sell_payout/scrap_payout.
+	-- Phase 2 (BAB-CRITTER-ESCAPE) will add escape outcomes to this event
+	-- with `outcome = "escaped_asset" | "escaped_liability" | ...`; for
+	-- now the only outcome is "added_to_stash".
+	pcall(function()
+		Telemetry.track("harvest_decision", {
+			species = speciesId,
+			mutationId = mutationId,
+			class = player:GetAttribute("Class"),
+			outcome = "added_to_stash",
+			rarity = species.rarity,
+		}, player)
+	end)
 
 	-- Fire popup to client. We bind to a local first because Luau's parser
 	-- treats a line starting with `(` as a continuation of the previous line
@@ -108,6 +125,19 @@ function HarvestFlow.harvestOffline(player: Player, speciesId: string, species: 
 	if mutationId ~= "" then
 		player:SetAttribute("MutationsFound", (player:GetAttribute("MutationsFound") or 0) + 1)
 	end
+
+	-- ADR-3 telemetry — same event as online harvest but tagged so we can
+	-- distinguish offline ripens from in-world walks.
+	pcall(function()
+		Telemetry.track("harvest_decision", {
+			species = speciesId,
+			mutationId = mutationId,
+			class = player:GetAttribute("Class"),
+			outcome = "added_to_stash",
+			rarity = species.rarity,
+			source = "offline_ripen",
+		}, player)
+	end)
 end
 
 -- Build a sprout model on a planter at a given progress. Wraps CritterVisuals

@@ -132,3 +132,5 @@ of each event declaration noting the props schema.
 ## Log
 
 - 2026-05-08 — Direction shift session; user re-prioritized to telemetry-first. Drafted ticket.
+- 2026-05-09 — Discovery surprise: 9 of 10 canonical events were already wired (`session_start`, `class_picked`, `pod_loaded`, `pod_ripened`, `sell_payout`, `scrap_payout`, `gamepass_purchased`, `dev_product_purchased`, `error_caught`). Only `harvest_decision` was missing. Plus 2 bonus events (`egg_purchased`, `steal_succeeded`).
+- 2026-05-09 — Phase 0 shipped: Cloudflare Worker (`tools/telemetry-worker/`), `harvest_decision` event in `HarvestFlow.luau`, `Telemetry.setIngestKey` + `X-Bab-Ingest-Key` header on flush, `TelemetryBoot.server.luau` reads generated `TelemetryConfig.luau` from `.env`-injected build (gitignored), Workspace-attribute fallback for runtime override.
