@@ -43,6 +43,12 @@ export type CritterSpec = {
 	tag: Tag,                   -- Contraband / Sacred / Mythic
 	-- Affinity per class id. Read by HarvestModal advisory line + Stable bonus engine.
 	affinity: { [string]: Affinity },
+	-- BAB-PHASE-1-CRITTER-RIGS: when true, CritterVisuals dispatches to the
+	-- rich rig builder (with hatch-cute / juvenile / adult forms + species-
+	-- distinctive features) instead of the archetype-default Parts. nil/false
+	-- → fall through to existing renderer. The 4 headline species (mech_hound,
+	-- coal_drake, brass_beetle, sky_wyvern) opt in.
+	rigSupport: boolean?,
 }
 
 -- Affinity table copy-pasted from spec §8 to make the data easy to audit.
@@ -83,6 +89,7 @@ M.SPECIES = {
 		unlockCash = 0,
 		tag = nil,
 		affinity = mkAff("A","n","n","A","n"),
+		rigSupport = true,
 	} :: CritterSpec,
 
 	steam_stallion = {
@@ -119,6 +126,7 @@ M.SPECIES = {
 		unlockCash = 500,
 		tag = nil,
 		affinity = mkAff("L","n","A","n","n"),
+		rigSupport = true,
 	} :: CritterSpec,
 
 	-- ── PETS ──────────────────────────────────────────────────────────────
@@ -156,6 +164,7 @@ M.SPECIES = {
 		unlockCash = 0,
 		tag = nil,
 		affinity = mkAff("A","n","n","A","n"),
+		rigSupport = true,
 	} :: CritterSpec,
 
 	aether_hummingbird = {
@@ -229,6 +238,7 @@ M.SPECIES = {
 		unlockCash = 4000,
 		tag = nil,                    -- NOT contraband — sellable
 		affinity = mkAff("L","n","A","L","n"),
+		rigSupport = true,
 	} :: CritterSpec,
 
 	-- ── MAGICAL ───────────────────────────────────────────────────────────

@@ -127,3 +127,12 @@ Both implemented in `CritterCameraHooks.client.luau`; trigger via
 ## Log
 
 - 2026-05-08 — Direction shift session; folded into prioritized roadmap. Drafted ticket.
+- 2026-05-09 — Phase 1 code scaffolding shipped (~900 LOC). Includes:
+  - `src/ReplicatedStorage/Modules/CritterRigs.luau` (new) — pure-data registry with form thresholds (HATCH_CUTE_END=0.25, JUVENILE_END=0.75) + per-species feature lists
+  - `src/ReplicatedStorage/Modules/CritterData.luau` — added `rigSupport: boolean?` field; opted in mech_hound, coal_drake, brass_beetle, sky_wyvern
+  - `src/ServerScriptService/CritterVisuals.luau` — added rig builder branch with per-species feature builders (ears, horns, wings, shell, antennae, longNeck, chestPlate, tail variants); form transitions tween scale + emit pop particle + fire `rig_form_transition` Telemetry; egg made semi-transparent (0.35) so the rig is visible inside from t=0
+  - `src/StarterPlayerScripts/CritterCameraHooks.client.luau` (new) — listens on `CritterCeremony` RemoteEvent (lazy-created server-side); ships `mythic_hatch` (1.6s freeze + orbit + bloom 1.4×) and `escape_burst` (0.6s bloom flash) ceremony handlers; Phase 1 doesn't fire either, Phase 2 fires escape_burst, Phase 3 fires mythic_hatch
+  - `tests/critter/rigs.test.luau` — 113 lune cases (formForProgress thresholds, monotonicity, form coverage)
+  - `scripts/test/critter-rigs-static.sh` — 24 structural checks (mirror constants pinned, all 4 species registered + opted in, dispatch wiring intact)
+- 2026-05-09 — Tests: 113/113 lune + all 8 structural-check sections pass. All 3 places build clean (Hatchery 296K → 332K, Marketplace 132K → 144K, Corridors 88K → 100K — growth is the rig builder code mounted via Rojo `$path` from src/ReplicatedStorage/Modules + src/StarterPlayerScripts).
+- 2026-05-09 — **Real meshes still pending** — current rigs are placeholder procedural Parts (richer than archetype baseline but not the Steampunk-Ghibli target). Open Question 1 (mesh authoring) tracked separately. When meshes land, swap `meshId` on each form profile in CritterRigs.RIGS — geometry builder will pick them up via the existing dispatch.
