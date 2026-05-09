@@ -17,6 +17,8 @@ local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChi
 local CritterVisuals = require(ServerScriptService:WaitForChild("CritterVisuals") :: ModuleScript)
 local CritterRegistry = require(script.Parent:WaitForChild("CritterRegistry") :: ModuleScript)
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript) :: any
+-- BAB-CRITTER-ESCAPE Phase 2.A: cancel the escape timer when harvested.
+local EscapeWindow = require(script.Parent:WaitForChild("EscapeWindow") :: ModuleScript) :: any
 
 -- The harvest-popup RemoteEvent is created lazily here so the module is
 -- self-sufficient (no PlantHandler.server.luau to make it). Idempotent:
@@ -40,6 +42,10 @@ function HarvestFlow.harvestPlanter(player: Player, planter: BasePart): boolean
 	local speciesId = planter:GetAttribute("PlantedSpecies") :: string
 	local species = CritterData.get(speciesId)
 	if not species then return false end
+
+	-- BAB-CRITTER-ESCAPE Phase 2.A: cancel any pending escape timer. The
+	-- player beat the escape window — happy path. No-op if not armed.
+	pcall(function() EscapeWindow.cancel(planter) end)
 
 	-- Roll mutation
 	local mutationId = ""

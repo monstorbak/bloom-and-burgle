@@ -28,6 +28,9 @@ local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: Modul
 local Critter = ServerScriptService:WaitForChild("Critter")
 local HarvestFlow = require(Critter:WaitForChild("HarvestFlow") :: ModuleScript)
 require(Critter:WaitForChild("Persistence") :: ModuleScript)
+-- BAB-CRITTER-ESCAPE Phase 2.A: eager-require EscapeWindow so its
+-- PlayerRemoving cleanup hook is wired on server boot.
+local EscapeWindow = require(Critter:WaitForChild("EscapeWindow") :: ModuleScript)
 
 -- ── Heartbeat: grow tick + ripen + EmptyBorder pulse ──────────────────────
 RunService.Heartbeat:Connect(function()
@@ -58,6 +61,10 @@ RunService.Heartbeat:Connect(function()
 				species = planter:GetAttribute("PlantedSpecies"),
 				growSeconds = planter:GetAttribute("GrowSeconds"),
 			}, owner)
+			-- BAB-CRITTER-ESCAPE Phase 2.A: arm the escape timer. T_escape =
+			-- T_grow (1:1 ratio per ticket). Cancellation lives in
+			-- HarvestFlow.harvestPlanter.
+			EscapeWindow.arm(planter)
 		end
 
 		-- BAB-STEAMPUNK: pod aether window glows brighter as growth progresses,

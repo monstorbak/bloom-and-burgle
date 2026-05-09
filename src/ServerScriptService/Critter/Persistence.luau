@@ -18,6 +18,8 @@ local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChi
 local Services = require(ServerScriptService:WaitForChild("Services") :: ModuleScript)
 local CritterRegistry = require(script.Parent:WaitForChild("CritterRegistry") :: ModuleScript)
 local HarvestFlow = require(script.Parent:WaitForChild("HarvestFlow") :: ModuleScript)
+-- BAB-CRITTER-ESCAPE Phase 2.A: snapshot/restore in-progress escape timers.
+local EscapeWindow = require(script.Parent:WaitForChild("EscapeWindow") :: ModuleScript) :: any
 
 local MAX_OFFLINE_SECONDS = 24 * 60 * 60  -- BAB-002: cap offline grow at 24h
 
@@ -46,7 +48,13 @@ function Persistence.snapshot(player: Player): { [string]: any }
 		if count > 0 then stash[key] = count end
 	end
 
-	return { planters = planters, stash = stash }
+	-- BAB-CRITTER-ESCAPE Phase 2.A: snapshot any armed escape timers.
+	-- pcall in case EscapeWindow somehow errored — never block the
+	-- snapshot path on a defensive failure (cash + stash must always save).
+	local escapes: { any } = {}
+	pcall(function() escapes = EscapeWindow.snapshotArmedFor(player) end)
+
+	return { planters = planters, stash = stash, escapes = escapes }
 end
 
 -- Restore plant + stash state after PlotManager has rebuilt the plot.
@@ -110,6 +118,13 @@ function Persistence.restore(player: Player, plotData: { [string]: any }?, lastS
 			HarvestFlow.buildSproutFor(planter, species, progress)
 		end
 	end
+
+	-- BAB-CRITTER-ESCAPE Phase 2.A: restore in-progress escape timers.
+	-- Entries that already elapsed offline are silently dropped per the
+	-- ticket's "Persistence" section ("with `startedAt + durationSeconds <
+	-- os.time()` are silently expired"). The behavior cleanups also
+	-- elapsed; nothing to re-activate.
+	pcall(function() EscapeWindow.restoreArmedFor(player, plotData.escapes) end)
 end
 
 -- ADR-5 (P1.2): register under both "CritterHandler" (canonical) and

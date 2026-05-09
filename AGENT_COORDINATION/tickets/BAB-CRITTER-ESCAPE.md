@@ -261,3 +261,33 @@ The escape timer is cancelled by:
 - 2026-05-08 — Plot Defense Layer folded in from the deferred combat plan
   (see `BAB-COMBAT-LATER.md`). Combat lives entirely inside this ticket's
   behavior catalog now — `targetsRaiders` flag on liability behaviors.
+- 2026-05-09 — **Phase 2.A shipped** (foundation). 15-entry behavior catalog
+  with 4 fully-implemented variants of Coal Forge / Drake Strafe (the
+  ticket's named seed entries) + 11 catalog-only stubs spanning 7 species.
+  Files:
+  - `src/ServerScriptService/Critter/EscapeBehaviors.luau` (new) — pure
+    data registry + activate fns. `coalForgeActivate` shifts `PlantedAt`
+    backwards for each owned planter (effective 1.5× speed), restoring
+    on cleanup if behavior ends mid-grow. `drakeStrafeActivate` runs an
+    8s-period task loop that picks a random active planter and torches
+    it (fire particle + clear).
+  - `src/ServerScriptService/Critter/EscapeWindow.luau` (new) — timer +
+    state machine + behavior dispatch. Per-planter token check for
+    cancellation (no hot loop). Snapshot/restore for persistence. Fires
+    `pod_escaped` Telemetry per ADR-3 + `escape_burst` ceremony via
+    CritterCeremony RemoteEvent (Phase 1's seam).
+  - `src/ServerScriptService/Critter/GrowLoop.server.luau` (modified) —
+    arms timer right after `pod_ripened` telemetry fires.
+  - `src/ServerScriptService/Critter/HarvestFlow.luau` (modified) —
+    cancels timer at the start of `harvestPlanter`.
+  - `src/ServerScriptService/Critter/Persistence.luau` (modified) —
+    snapshot/restore in-progress escape timers; entries expired offline
+    are silently dropped per the ticket spec.
+  Tests: 24 lune cases (`tests/critter/escape.test.luau`) + 35 structural
+  checks (`scripts/test/critter-escape-static.sh`). All pre-existing
+  tests still green (no regression). Builds: Hatchery 332K → 360K.
+- 2026-05-09 — **Phase 2.B (UX) deferred** to follow-up PR — covers
+  EscapeWarningHUD client (countdown stack), aether-window strobe in
+  the last 25% of the escape window, alarm-pylon integration, toast
+  copy. Mechanic is FUNCTIONAL post-Phase-2.A (escape fires, behaviors
+  activate, telemetry lands) but visually undermarked.
