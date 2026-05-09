@@ -1,0 +1,29 @@
+# Cloudflare Worker config for BAB telemetry ingestion.
+#
+# Deployment runbook: see ./README.md
+#
+# After running `npx wrangler kv:namespace create BAB_TELEMETRY`, paste the
+# returned `id` value below in place of the placeholder.
+
+name = "bab-telemetry"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# KV namespace bound at runtime as `env.BAB_TELEMETRY`. The `id` below is
+# created via `npx wrangler kv:namespace create BAB_TELEMETRY` (one-time,
+# replace placeholder).
+kv_namespaces = [
+  { binding = "BAB_TELEMETRY", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
+]
+
+# The ingest secret (BAB_INGEST_KEY) is set out-of-band via:
+#   npx wrangler secret put BAB_INGEST_KEY
+# It does NOT live in this file (don't commit secrets).
+
+# Observability — stream logs to Cloudflare's tail UI. Free.
+[observability]
+enabled = true
+
+# Limits — defensive defaults. Adjust if scale demands.
+[limits]
+cpu_ms = 50

@@ -48,6 +48,10 @@ scripts/debug/captures/
 # Per-user private skill bundle (Anthropic Cowork-style); never project-tracked
 .agents/
 
+# Telemetry config — generated at publish time from .env (BB_TELEMETRY_*).
+# Contains the live ingest key, never commit.
+src/ServerScriptService/TelemetryConfig.luau
+
 # Chat history mirror — regenerable from ~/.claude/projects/<encoded>/<id>.jsonl
 # via scripts/history/export_history.py. Don't commit (it would churn every turn).
 Bloom&Burgle_ChatHistory.md
