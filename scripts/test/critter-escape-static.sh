@@ -146,6 +146,19 @@ check_grep '"escape_burst"' \
     "EscapeWindow fires escape_burst ceremony via CritterCeremony RemoteEvent"
 
 echo
+echo "── 11.5. Phase 2.B UX (EscapeWarningHUD) ──"
+check_file src/StarterPlayerScripts/EscapeWarningHUD.client.luau
+check_grep "EscapeAt" \
+    src/StarterPlayerScripts/EscapeWarningHUD.client.luau \
+    "EscapeWarningHUD reads EscapeAt attribute (server-set by EscapeWindow.arm)"
+check_grep '"escape_burst"' \
+    src/StarterPlayerScripts/EscapeWarningHUD.client.luau \
+    "EscapeWarningHUD listens for escape_burst ceremony to render toast"
+check_grep "EmptyBorder" \
+    src/StarterPlayerScripts/EscapeWarningHUD.client.luau \
+    "EscapeWarningHUD animates the planter's aether window (EmptyBorder)"
+
+echo
 echo "── 12. Mirror count pinned in lockstep (test == prod) ──"
 # Test pins EXPECTED_TOTAL = 15. If catalog grows, both must update together.
 check_grep "EXPECTED_TOTAL = 15" \
