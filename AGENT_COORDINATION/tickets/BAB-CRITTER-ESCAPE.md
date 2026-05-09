@@ -286,8 +286,26 @@ The escape timer is cancelled by:
   Tests: 24 lune cases (`tests/critter/escape.test.luau`) + 35 structural
   checks (`scripts/test/critter-escape-static.sh`). All pre-existing
   tests still green (no regression). Builds: Hatchery 332K → 360K.
-- 2026-05-09 — **Phase 2.B (UX) deferred** to follow-up PR — covers
-  EscapeWarningHUD client (countdown stack), aether-window strobe in
-  the last 25% of the escape window, alarm-pylon integration, toast
-  copy. Mechanic is FUNCTIONAL post-Phase-2.A (escape fires, behaviors
-  activate, telemetry lands) but visually undermarked.
+- 2026-05-09 — **Phase 2.B shipped** (UX). The mechanic is now legible:
+  - `src/StarterPlayerScripts/EscapeWarningHUD.client.luau` (new) —
+    pure-client. Reads `EscapeAt` + `EscapeArmedAt` attributes that
+    EscapeWindow.arm sets server-side (BasePart attributes auto-replicate);
+    no extra RemoteEvent needed. Renders a top-right stack of countdown
+    entries ("🐉 Coal Drake — 1:34 to escape!") sorted ascending by
+    remaining time. At <25% remaining, the entry's UIStroke strobes +
+    the planter's aether-window EmptyBorder lerps cyan → red.
+  - Toast on escape via the existing CritterCeremony `escape_burst`
+    payload (Phase 1's seam, Phase 2.A's fire, Phase 2.B's toast). Copy
+    differs by affinity:
+      asset      → "✨ Coal Drake escaped! Coal Forge — your plot just
+                    got a boost." (gold stroke)
+      liability  → "💥 Coal Drake escaped! Drake Strafe is wrecking
+                    your plot." (red stroke)
+      neutral    → "💨 Coal Drake escaped silently. The pod is empty."
+  - 5 Hz poll loop (every 0.2s) — plenty for second-resolution countdown,
+    cheap on CPU.
+  - Plot Defense Layer's alarm-pylon visual (per Spec §2.3) is DEFERRED
+    to a follow-up — it's a per-plot visual fixture in PlotManager and
+    sat outside Phase 2.B's scope.
+  Tests: 4 new structural checks added to `critter-escape-static.sh`.
+  All previous tests still green (no regression).
