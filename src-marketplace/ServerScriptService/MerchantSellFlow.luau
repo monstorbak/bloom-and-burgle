@@ -114,6 +114,79 @@ local function todaysSpecialFor(npcId: string): (string?, string?)
 	return sId, s and s.displayName
 end
 
+-- ── Quote line builder (Phase 3 rich-UI payload) ─────────────────────
+-- Convert a per-entry PriceResult + the raw stash key into a wire-friendly
+-- record the client can render directly: emoji, displayNames, multiplier
+-- breakdown, asset/liability flag.
+
+local function mutationDisplayFor(mutationId: string): (string?, string?)
+	if mutationId == "" then return nil, nil end
+	for _, m in CritterData.MUTATIONS do
+		if m.id == mutationId then return m.displayName, m.emoji end
+	end
+	return nil, nil
+end
+
+-- Build one wire line for the client. cashMult is folded into the lineSubtotal
+-- so the client sees per-line numbers that sum to the player's quoted total.
+type QuoteLine = {
+	key: string,
+	speciesId: string,
+	speciesName: string,
+	speciesEmoji: string,
+	mutationId: string,
+	mutationName: string?,
+	mutationEmoji: string?,
+	count: number,
+	basePayout: number,
+	lineSubtotal: number,
+	multiplier: number,
+	rawMultiplier: number,
+	wasCapped: boolean,
+	affinity: string,
+	wasSpecial: boolean,
+	inPreference: boolean,
+	-- Breakdown components for tooltip (echoed from PriceResult).
+	basePremium: number,
+	preferenceFit: number,
+	arbitrageBonus: number,
+	specialBonus: number,
+	skipReason: string,
+}
+
+local function buildLine(key: string, r, count: number, cashMult: number): QuoteLine?
+	-- Parse "speciesId:mutationId" key.
+	local sep = string.find(key, ":") or 0
+	local sId = if sep > 0 then string.sub(key, 1, sep - 1) else key
+	local mId = if sep > 0 then string.sub(key, sep + 1) else ""
+	local s = CritterData.get(sId)
+	if not s then return nil end
+	local mName, mEmoji = mutationDisplayFor(mId)
+	return {
+		key = key,
+		speciesId = sId,
+		speciesName = s.displayName,
+		speciesEmoji = s.emoji,
+		mutationId = mId,
+		mutationName = mName,
+		mutationEmoji = mEmoji,
+		count = count,
+		basePayout = r.basePayout,
+		lineSubtotal = math.floor(r.totalPayout * cashMult),
+		multiplier = r.multiplier,
+		rawMultiplier = r.rawMultiplier,
+		wasCapped = r.wasCapped,
+		affinity = r.affinity,
+		wasSpecial = r.wasSpecial,
+		inPreference = r.inPreference,
+		basePremium = r.basePremium,
+		preferenceFit = r.preferenceFit,
+		arbitrageBonus = r.arbitrageBonus,
+		specialBonus = r.specialBonus,
+		skipReason = r.skipReason,
+	}
+end
+
 -- ── Quote flow ───────────────────────────────────────────────────────
 
 local function quoteFor(npcId: string, player: Player)
@@ -143,6 +216,28 @@ local function quoteFor(npcId: string, player: Player)
 	end
 	local avgMultiplier = sumBase > 0 and (result.totalPayout / sumBase) or p.basePremium
 
+	-- Phase 3: per-line records for the rich UI. Priced lines sorted by
+	-- subtotal descending (most lucrative first); skipped lines (contraband)
+	-- in a separate array so the UI renders them as a "won't buy" section.
+	local lines: { QuoteLine } = {}
+	local skippedLines: { QuoteLine } = {}
+	for key, n in stash do
+		local r = result.perEntry[key]
+		if not r then continue end
+		local line = buildLine(key, r, n, cashMult)
+		if not line then continue end
+		if r.skipReason == "" then
+			table.insert(lines, line)
+		else
+			table.insert(skippedLines, line)
+		end
+	end
+	table.sort(lines, function(a, b) return a.lineSubtotal > b.lineSubtotal end)
+	table.sort(skippedLines, function(a, b)
+		-- Lexical sort for stable display since subtotals are 0.
+		return a.speciesName < b.speciesName
+	end)
+
 	MarketplaceSellRE:FireClient(player, "quote", {
 		npcId = p.id,
 		displayName = p.displayName,
@@ -155,6 +250,8 @@ local function quoteFor(npcId: string, player: Player)
 		avgMultiplier = avgMultiplier,
 		todaysSpecialId = todaysId,
 		todaysSpecialName = todaysName,
+		lines = lines,
+		skippedLines = skippedLines,
 	})
 end
 
@@ -247,6 +344,16 @@ function M.attachNPC(npcId: string, prompt: ProximityPrompt)
 	-- Print today's special on boot for live-server-log discoverability.
 	local _, todaysName = todaysSpecialFor(npcId)
 	print(("[BAB-LIFE] %s online (today's special: %s)"):format(npcId, todaysName or "—"))
+end
+
+-- Look up today's special for an NPC. NPC server scripts use this to render
+-- the plaza-visible "Today's Special" plaque on their stall sign.
+-- Returns (speciesId, speciesDisplayName, speciesEmoji) or nil-tuple.
+function M.todaysSpecialFor(npcId: string): (string?, string?, string?)
+	local sId, sName = todaysSpecialFor(npcId)
+	if not sId then return nil, nil, nil end
+	local s = CritterData.get(sId)
+	return sId, sName, s and s.emoji or nil
 end
 
 -- ── Single dispatch listener for confirm ─────────────────────────────

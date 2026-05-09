@@ -96,6 +96,38 @@ head.Size = Vector3.new(1.6, 1.6, 1.6)
 head.Position = STALL_POSITION + Vector3.new(0, 6.2, -4.5)
 head.Parent = stall
 
+-- ── Today's special plaque (Phase 3 plaza-visible banner) ────────────
+-- Smaller sign immediately below the main sign, gold-accented to draw
+-- the eye. Visible from across the plaza so players can shop the rotation
+-- before committing to a stall.
+local todaysSId, todaysSName, todaysSEmoji = MerchantSellFlow.todaysSpecialFor(NPC_ID)
+if todaysSName then
+	local plaque = Instance.new("Part")
+	plaque.Name = "TodaysSpecialPlaque"
+	plaque.Anchored = true
+	plaque.CanCollide = false
+	plaque.Material = Enum.Material.Metal
+	plaque.Color = BrandColors.GoggleGold
+	plaque.Size = Vector3.new(7, 1.2, 0.5)
+	plaque.Position = STALL_POSITION + Vector3.new(0, 4.4, -4)
+	plaque.Parent = stall
+
+	local pgui = Instance.new("SurfaceGui")
+	pgui.Face = Enum.NormalId.Front
+	pgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	pgui.PixelsPerStud = 50
+	pgui.Parent = plaque
+
+	local plbl = Instance.new("TextLabel")
+	plbl.Size = UDim2.fromScale(1, 1)
+	plbl.BackgroundTransparency = 1
+	plbl.Text = string.format("🌟 TODAY: %s %s", todaysSEmoji or "", todaysSName)
+	plbl.TextColor3 = BrandColors.OilBlack
+	plbl.Font = Enum.Font.GothamBold
+	plbl.TextScaled = true
+	plbl.Parent = pgui
+end
+
 -- ── Prompt + wire to MerchantSellFlow ────────────────────────────────
 local prompt = Instance.new("ProximityPrompt")
 prompt.Name = "BrassBartPrompt"
