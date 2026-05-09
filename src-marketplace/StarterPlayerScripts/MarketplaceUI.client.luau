@@ -278,7 +278,7 @@ local function buildSkippedRow(line: any): Frame
 	lbl.Text = string.format("%s %s × %d   ⚠ contraband (scrap instead)",
 		line.speciesEmoji or "•", line.speciesName, line.count)
 	lbl.TextColor3 = C.DimText
-	lbl.Font = Enum.Font.GothamItalic
+	lbl.Font = Enum.Font.SourceSansItalic
 	lbl.TextScaled = true
 	lbl.Parent = row
 
@@ -338,7 +338,7 @@ local quoteModal = New "ScreenGui" {
 					BackgroundTransparency = 1,
 					Text = dialogueText,
 					TextColor3 = C.SubText,
-					Font = Enum.Font.GothamItalic,
+					Font = Enum.Font.SourceSansItalic,
 					TextScaled = true,
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextWrapped = true,
@@ -450,7 +450,7 @@ local function populateRows(data: any)
 		divider.BackgroundTransparency = 1
 		divider.Text = "── Won't buy ──"
 		divider.TextColor3 = C.DimText
-		divider.Font = Enum.Font.GothamItalic
+		divider.Font = Enum.Font.SourceSansItalic
 		divider.TextScaled = true
 		divider.LayoutOrder = layoutOrder
 		divider.Parent = rowsContainer
