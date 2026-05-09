@@ -133,4 +133,11 @@ of each event declaration noting the props schema.
 
 - 2026-05-08 — Direction shift session; user re-prioritized to telemetry-first. Drafted ticket.
 - 2026-05-09 — Discovery surprise: 9 of 10 canonical events were already wired (`session_start`, `class_picked`, `pod_loaded`, `pod_ripened`, `sell_payout`, `scrap_payout`, `gamepass_purchased`, `dev_product_purchased`, `error_caught`). Only `harvest_decision` was missing. Plus 2 bonus events (`egg_purchased`, `steal_succeeded`).
-- 2026-05-09 — Phase 0 shipped: Cloudflare Worker (`tools/telemetry-worker/`), `harvest_decision` event in `HarvestFlow.luau`, `Telemetry.setIngestKey` + `X-Bab-Ingest-Key` header on flush, `TelemetryBoot.server.luau` reads generated `TelemetryConfig.luau` from `.env`-injected build (gitignored), Workspace-attribute fallback for runtime override.
+- 2026-05-09 — Phase 0 code merged (PR #14 / commit `9494555`): Cloudflare Worker scaffolding (`tools/telemetry-worker/`), `harvest_decision` event in `HarvestFlow.luau`, `Telemetry.setIngestKey` + `X-Bab-Ingest-Key` header on flush, `TelemetryBoot.server.luau` reads generated `TelemetryConfig.luau` from `.env`-injected build (gitignored), Workspace-attribute fallback for runtime override.
+- 2026-05-09 — Phase 0 deployed (PR #15 / commit `b245a8a`):
+  - Cloudflare Worker live at `https://bab-telemetry.nick-b7a.workers.dev`
+  - KV namespace `BAB_TELEMETRY` (id `b0d556638b91491f8c17604ba2443249`) bound, smoke-tests pass end-to-end (401 unauth / 401 wrong key / 200 empty / 200 real-shape with KV write verified)
+  - `wrangler.toml` populated with KV id; `[limits].cpu_ms` removed (paid-plan only)
+  - All 3 places republished with telemetry config baked in: Hatchery v65, Marketplace v4, Corridors v6
+  - Hatchery publish from Mac succeeded first try after Linux session hit ~31× HTTP 409 retries (place-specific lock pattern; Mac credentials unblocked it)
+- **STATUS: Phase 0 LIVE** — every player session now POSTs the 11 events (`session_start`, `session_end`, `class_picked`, `pod_loaded`, `pod_ripened`, `harvest_decision`, `sell_payout`, `scrap_payout`, `gamepass_purchased`, `dev_product_purchased`, `error_caught`, plus bonus `egg_purchased` and `steal_succeeded`) to Workers KV. Inspect with `npx wrangler kv key list --binding BAB_TELEMETRY --remote`.
