@@ -104,6 +104,31 @@ function DevMode.init()
 			elseif (lower == "/clearmutation" or lower == "/forcemutation") and DevMode.isEnabled() then
 				Workspace:SetAttribute("ForceMutation", nil)
 				print("[DevMode] ForceMutation cleared — harvests roll normally.")
+			elseif lower == "/testmythic" and DevMode.isEnabled() then
+				-- Direct-fire the Mythic ceremony to the local player. Bypasses
+				-- planting + harvesting + mutation rolls — pure visualization
+				-- test for clip/screenshot prep. Position is the player's
+				-- current HumanoidRootPart, so the camera frames the player.
+				local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				local pos = hrp and hrp.Position or Vector3.new(0, 5, 0)
+				local re = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvents")
+				re = re and re:FindFirstChild("CritterCeremony")
+				if re and re:IsA("RemoteEvent") then
+					(re :: RemoteEvent):FireClient(player, {
+						type = "mythic_hatch",
+						position = pos,
+						duration = 1.6,
+						speciesId = "coal_drake",
+						speciesName = "Coal Drake",
+						speciesEmoji = "🐉",
+						mutationId = "celestial",
+						mutationName = "Celestial",
+						mutationEmoji = "💫",
+					})
+					print("[DevMode] /testmythic — Mythic ceremony fired. Close dev console to see toast + bloom + flash.")
+				else
+					warn("[DevMode] /testmythic — CritterCeremony RemoteEvent not found")
+				end
 			end
 		end)
 	end)

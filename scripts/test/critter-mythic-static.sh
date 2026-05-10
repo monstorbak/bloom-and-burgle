@@ -80,6 +80,9 @@ check_grep "/forcemutation" \
 check_grep "/clearmutation" \
     src/ServerScriptService/DevMode.luau \
     "DevMode adds /clearmutation chat command for admins"
+check_grep "/testmythic" \
+    src/ServerScriptService/DevMode.luau \
+    "DevMode adds /testmythic chat command (one-shot ceremony fire)"
 
 echo
 echo "── 4. Advisory copy templates pinned in mirror ──"
