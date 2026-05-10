@@ -148,7 +148,9 @@ local function screenFlash()
 	local f = Instance.new("Frame")
 	f.Size = UDim2.fromScale(1, 1)
 	f.BackgroundColor3 = Color3.new(1, 1, 1)
-	f.BackgroundTransparency = 0.15
+	-- Nearly opaque (alpha 0.05 = 95% white) so the flash registers
+	-- unambiguously even on busy / dark scenes.
+	f.BackgroundTransparency = 0.05
 	f.BorderSizePixel = 0
 	f.Parent = sg
 	TweenService:Create(f, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -212,9 +214,11 @@ end
 
 -- Mythic-tinted toast. Fires at t+2.0s ("💫 CELESTIAL Coal Drake hatched!").
 -- Held for 4s then fades. DisplayOrder=9999 to render above standard
--- ScreenGuis (tutorial banners, cash chip). Position 0.18 (not 0.08) to
--- clear the persistent "you have seeds" tutorial banner that lives at
--- 0.05-0.10 in CashHUD/PlantingFlow.
+-- ScreenGuis. Anchored DEAD CENTER (0.5, 0.5) so no top-of-screen
+-- tutorial banner can hide it (the persistent "Buy seeds at the EGG
+-- EMPORIUM" prompt sits at the top — kills any toast at 0.08-0.18).
+-- The player's character is walk-locked during the ceremony, so a
+-- center-screen toast doesn't block gameplay.
 local function mythicToast(payload: any)
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "MythicToast"
@@ -223,9 +227,9 @@ local function mythicToast(payload: any)
 	sg.DisplayOrder = 9999
 	sg.Parent = playerGui
 	local panel = Instance.new("Frame")
-	panel.AnchorPoint = Vector2.new(0.5, 0)
-	panel.Position = UDim2.fromScale(0.5, 0.18)
-	panel.Size = UDim2.fromOffset(560, 90)
+	panel.AnchorPoint = Vector2.new(0.5, 0.5)
+	panel.Position = UDim2.fromScale(0.5, 0.5)
+	panel.Size = UDim2.fromOffset(680, 130)
 	panel.BackgroundColor3 = Color3.fromRGB(40, 36, 32)
 	panel.BackgroundTransparency = 0.05
 	panel.BorderSizePixel = 0
@@ -255,15 +259,35 @@ local function mythicToast(payload: any)
 	lbl.Parent = panel
 	local sz = Instance.new("UITextSizeConstraint"); sz.MaxTextSize = 28; sz.Parent = lbl
 
-	-- Slide in from above + shimmer scale.
-	panel.Position = UDim2.fromScale(0.5, -0.1)
-	TweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Position = UDim2.fromScale(0.5, 0.08),
+	-- Pop-in from slightly larger scale + fade in from transparent. Center-
+	-- screen positioning means a slide-from-top animation is wrong; use a
+	-- pop-in instead. Held 4s then fades out.
+	panel.BackgroundTransparency = 1
+	lbl.TextTransparency = 1
+	stk.Transparency = 1
+	-- Start slightly oversized + tween down to natural size for the "land" feel.
+	local naturalSize = panel.Size
+	panel.Size = UDim2.fromOffset(naturalSize.X.Offset * 1.2, naturalSize.Y.Offset * 1.2)
+	TweenService:Create(panel, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Size = naturalSize,
+		BackgroundTransparency = 0.05,
+	}):Play()
+	TweenService:Create(lbl, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextTransparency = 0,
+	}):Play()
+	TweenService:Create(stk, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Transparency = 0,
 	}):Play()
 	task.delay(4.0, function()
 		if not sg.Parent then return end
 		TweenService:Create(panel, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.fromScale(0.5, -0.1),
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(lbl, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			TextTransparency = 1,
+		}):Play()
+		TweenService:Create(stk, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
 		}):Play()
 		task.wait(0.6)
 		if sg.Parent then sg:Destroy() end
