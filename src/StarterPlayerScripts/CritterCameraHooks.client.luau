@@ -48,6 +48,12 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local localPlayer = Players.LocalPlayer
+-- Cache PlayerGui — used as the parent for screenFlash + mythicToast
+-- ScreenGuis. Without this, those functions did `sg.Parent = playerGui`
+-- where `playerGui` was an undefined global (= nil), Roblox silently
+-- accepted nil-Parent, the ScreenGui never rendered. Bug shipped in
+-- Phase 1, surfaced in Phase 3 when the ceremony actually fires.
+local playerGui = localPlayer:WaitForChild("PlayerGui") :: PlayerGui
 
 -- ── Wait for the RemoteEvent (server lazy-creates it) ────────────────
 local remotes = ReplicatedStorage:WaitForChild("RemoteEvents")
