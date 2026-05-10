@@ -77,13 +77,17 @@ local function ensureBloom(): BloomEffect
 	return nb
 end
 
+-- Pulse bloom to an ABSOLUTE target intensity, not a relative bump. This
+-- guarantees a visible change regardless of the LightingBoot baseline
+-- (steampunk atmosphere can set bloom to 1.0+ at boot — a 1.4× relative
+-- bump from there is imperceptible).
 local function pulseBloom(target: number, hold: number, releaseTime: number)
 	local b = ensureBloom()
 	local original = b.Intensity
 	-- Ramp up
 	TweenService:Create(b, TweenInfo.new(0.25, Enum.EasingStyle.Quad), { Intensity = target }):Play()
 	task.delay(0.25 + hold, function()
-		-- Ramp back down
+		-- Ramp back down to baseline
 		TweenService:Create(b, TweenInfo.new(releaseTime, Enum.EasingStyle.Quad), { Intensity = original }):Play()
 	end)
 end
@@ -130,25 +134,27 @@ end
 -- the orbit camera is the freeze; the character may still walk in place
 -- below the camera but the visual focus is on the critter.
 
--- Screen flash overlay — opens at 60% alpha, decays over 0.4s. Per the
--- Phase 3 ticket spec ("t=0.0s screen overlay flashes white at 60% alpha
--- for 0.15s, decays").
+-- Screen flash overlay — opens nearly opaque, decays over 0.6s. Bright
+-- enough to register over heavy fog, red ambient lighting, or partial
+-- dev-console overlap. DisplayOrder pushed to 9999 to render above any
+-- standard ScreenGui (incl. tutorial banners).
 local function screenFlash()
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "MythicFlash"
 	sg.ResetOnSpawn = false
 	sg.IgnoreGuiInset = true
+	sg.DisplayOrder = 9999
 	sg.Parent = playerGui
 	local f = Instance.new("Frame")
 	f.Size = UDim2.fromScale(1, 1)
 	f.BackgroundColor3 = Color3.new(1, 1, 1)
-	f.BackgroundTransparency = 0.4
+	f.BackgroundTransparency = 0.15
 	f.BorderSizePixel = 0
 	f.Parent = sg
-	TweenService:Create(f, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+	TweenService:Create(f, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		BackgroundTransparency = 1,
 	}):Play()
-	task.delay(0.5, function() if sg.Parent then sg:Destroy() end end)
+	task.delay(0.7, function() if sg.Parent then sg:Destroy() end end)
 end
 
 -- Vertical light pillar at the planter location. Tinted by mutation color
@@ -205,16 +211,20 @@ local function lockWalkSpeed(duration: number)
 end
 
 -- Mythic-tinted toast. Fires at t+2.0s ("💫 CELESTIAL Coal Drake hatched!").
--- Held for 4s then fades.
+-- Held for 4s then fades. DisplayOrder=9999 to render above standard
+-- ScreenGuis (tutorial banners, cash chip). Position 0.18 (not 0.08) to
+-- clear the persistent "you have seeds" tutorial banner that lives at
+-- 0.05-0.10 in CashHUD/PlantingFlow.
 local function mythicToast(payload: any)
 	local sg = Instance.new("ScreenGui")
 	sg.Name = "MythicToast"
 	sg.ResetOnSpawn = false
 	sg.IgnoreGuiInset = true
+	sg.DisplayOrder = 9999
 	sg.Parent = playerGui
 	local panel = Instance.new("Frame")
 	panel.AnchorPoint = Vector2.new(0.5, 0)
-	panel.Position = UDim2.fromScale(0.5, 0.08)
+	panel.Position = UDim2.fromScale(0.5, 0.18)
 	panel.Size = UDim2.fromOffset(560, 90)
 	panel.BackgroundColor3 = Color3.fromRGB(40, 36, 32)
 	panel.BackgroundTransparency = 0.05
@@ -268,10 +278,12 @@ local function ceremonyMythic(payload: any)
 	local duration = (payload.duration :: number?) or 1.6
 	if not position then ceremonyActive = false; return end
 
-	-- t+0.0s : screen flash + camera orbit + bloom ramp + walk lock
+	-- t+0.0s : screen flash + camera orbit + bloom ramp + walk lock.
+	-- Bloom target = 4.0 absolute (was 1.4, but baselines from LightingBoot
+	-- can already exceed that — absolute value guarantees a visible jump).
 	screenFlash()
 	startOrbit(position, duration)
-	pulseBloom(1.4, duration - 0.5, 0.4)
+	pulseBloom(4.0, duration - 0.5, 0.4)
 	lockWalkSpeed(duration + 0.3)
 
 	-- t+0.1s : light pillar at the pod (mutation-tinted)
