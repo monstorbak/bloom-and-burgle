@@ -7,7 +7,28 @@ local ServerScriptService = game:GetService("ServerScriptService")
 
 -- DataStore is a ModuleScript sibling. WaitForChild guards against script
 -- load order races on first server boot.
-local DataStore = require(ServerScriptService:WaitForChild("DataStore") :: ModuleScript)
+--
+-- Resilience (2026-05-10): DataStore module errors at load time when
+-- Studio's "Enable Studio Access to API Services" is off OR the place
+-- isn't published. Without pcall, the whole LeaderstatsScript halts here,
+-- blocking DevMode.init() (line below) and breaking chat commands like
+-- /testmythic that have nothing to do with persistence. Wrap require in
+-- pcall + log a warning so non-DataStore subsystems keep working in
+-- offline Studio mode.
+local DataStore: any
+do
+	local ok, mod = pcall(function()
+		return require(ServerScriptService:WaitForChild("DataStore") :: ModuleScript)
+	end)
+	if ok then
+		DataStore = mod
+	else
+		warn("[LeaderstatsScript] DataStore unavailable (" .. tostring(mod) .. "). " ..
+			"Persistence disabled — Studio: enable 'Studio Access to API Services' in Game Settings.")
+		-- Stub: every method returns empty/no-op so callers don't error.
+		DataStore = setmetatable({}, { __index = function() return function() return {} end end })
+	end
+end
 local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript)
 local Services = require(ServerScriptService:WaitForChild("Services") :: ModuleScript)
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript)
