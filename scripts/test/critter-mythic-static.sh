@@ -70,6 +70,18 @@ check_grep "affinityColor" \
     "HarvestModal uses class-accent color for the advisory line"
 
 echo
+echo "── 3.5. DevMode ForceMutation override (test infrastructure) ──"
+check_grep "ForceMutation" \
+    src/ServerScriptService/Critter/HarvestFlow.luau \
+    "HarvestFlow honors Workspace.ForceMutation when DevMode is on"
+check_grep "/forcemutation" \
+    src/ServerScriptService/DevMode.luau \
+    "DevMode adds /forcemutation chat command for admins"
+check_grep "/clearmutation" \
+    src/ServerScriptService/DevMode.luau \
+    "DevMode adds /clearmutation chat command for admins"
+
+echo
 echo "── 4. Advisory copy templates pinned in mirror ──"
 check_file tests/critter/advisory_copy.test.luau
 check_grep "thrive with" \

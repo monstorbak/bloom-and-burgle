@@ -91,6 +91,19 @@ function DevMode.init()
 				local ls = player:FindFirstChild("leaderstats")
 				local cash = ls and ls:FindFirstChild("Cash") :: IntValue?
 				if cash then cash.Value = cash.Value + DEV_BUFFS.cash end
+			elseif lower:match("^/forcemutation ") and DevMode.isEnabled() then
+				-- BAB-PHASE-3 testing: force every harvest's mutation roll to
+				-- the given id (e.g. /forcemutation celestial → triggers the
+				-- Mythic ceremony on demand). Honored by HarvestFlow only when
+				-- DevMode is enabled. Clear via /clearmutation.
+				local mutId = lower:match("^/forcemutation (.+)$")
+				if mutId and mutId ~= "" then
+					Workspace:SetAttribute("ForceMutation", mutId)
+					print(("[DevMode] ForceMutation = %s — every harvest now rolls this mutation."):format(mutId))
+				end
+			elseif (lower == "/clearmutation" or lower == "/forcemutation") and DevMode.isEnabled() then
+				Workspace:SetAttribute("ForceMutation", nil)
+				print("[DevMode] ForceMutation cleared — harvests roll normally.")
 			end
 		end)
 	end)
