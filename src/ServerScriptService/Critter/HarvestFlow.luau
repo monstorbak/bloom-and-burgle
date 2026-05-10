@@ -13,12 +13,17 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
+local Workspace = game:GetService("Workspace")
+
 local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
 local CritterVisuals = require(ServerScriptService:WaitForChild("CritterVisuals") :: ModuleScript)
 local CritterRegistry = require(script.Parent:WaitForChild("CritterRegistry") :: ModuleScript)
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry") :: ModuleScript) :: any
 -- BAB-CRITTER-ESCAPE Phase 2.A: cancel the escape timer when harvested.
 local EscapeWindow = require(script.Parent:WaitForChild("EscapeWindow") :: ModuleScript) :: any
+-- BAB-PHASE-3 testing: DevMode-only mutation override (set via
+-- /forcemutation <id> chat command; honored only when DevMode is on).
+local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript) :: any
 
 -- The harvest-popup RemoteEvent is created lazily here so the module is
 -- self-sufficient (no PlantHandler.server.luau to make it). Idempotent:
@@ -47,9 +52,20 @@ function HarvestFlow.harvestPlanter(player: Player, planter: BasePart): boolean
 	-- player beat the escape window — happy path. No-op if not armed.
 	pcall(function() EscapeWindow.cancel(planter) end)
 
-	-- Roll mutation
+	-- Roll mutation. DevMode override path (Workspace.ForceMutation) lets
+	-- admins force any mutation id for screenshot/clip prep — only honored
+	-- when DevMode is enabled, and the override applies to ALL harvests
+	-- until cleared. Set/clear via the /forcemutation chat command in
+	-- DevMode.luau.
 	local mutationId = ""
-	if math.random() <= species.mutationChance then
+	local forceMut: any = DevMode.isEnabled() and Workspace:GetAttribute("ForceMutation")
+	if typeof(forceMut) == "string" and forceMut ~= "" then
+		-- Validate against the known mutation registry — silently no-op
+		-- if the id is unknown so admins can't accidentally inject garbage.
+		for _, m in CritterData.MUTATIONS do
+			if m.id == forceMut then mutationId = forceMut; break end
+		end
+	elseif math.random() <= species.mutationChance then
 		local mut = CritterData.rollMutation()
 		if mut then mutationId = mut.id end
 	end
