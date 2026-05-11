@@ -162,7 +162,7 @@ local function buildPlaque(name: string, displayTitle: string, accent: Color3, x
 	emptyLbl.BackgroundTransparency = 1
 	emptyLbl.Text = "— No entries yet —"
 	emptyLbl.TextColor3 = BrandColors.SteamCream
-	emptyLbl.Font = Enum.Font.GothamItalic
+	emptyLbl.Font = Enum.Font.SourceSansItalic
 	emptyLbl.TextScaled = true
 	emptyLbl.Visible = true
 	emptyLbl.Parent = listFrame
