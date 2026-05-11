@@ -65,6 +65,10 @@ local function buildLeaderstats(player: Player, data: { [string]: any })
 	player:SetAttribute("PlantsHarvested", data.plantsHarvested or 0)
 	player:SetAttribute("MutationsFound", data.mutationsFound or 0)
 	player:SetAttribute("LifetimeCash", data.lifetimeCash or 0)
+	-- BAB-PHASE-4-VISIT-FRIEND-AND-TROPHY-HALL: lifetime Mythic-rarity hatches
+	-- (celestial mutation OR Mythic species). Surfaced on the cross-server
+	-- Trophy Hall (Mythic Hatchers plaque). Defaults 0 for legacy saves.
+	player:SetAttribute("MythicHatches", data.mythicHatches or 0)
 	player:SetAttribute("StarterPackGranted", data.starterPackGranted or false)
 	-- BAB-STEAMPUNK: class identity + secondary currency + stable capacity.
 	-- Class is nil until ClassPickerUI fires PickClass; HUD uses the attribute
@@ -109,6 +113,7 @@ local function snapshot(player: Player): { [string]: any }?
 		plantsHarvested = player:GetAttribute("PlantsHarvested") or 0,
 		mutationsFound = player:GetAttribute("MutationsFound") or 0,
 		lifetimeCash = player:GetAttribute("LifetimeCash") or 0,
+		mythicHatches = player:GetAttribute("MythicHatches") or 0,
 		starterPackGranted = player:GetAttribute("StarterPackGranted") or false,
 		-- BAB-STEAMPUNK
 		class = player:GetAttribute("Class"),

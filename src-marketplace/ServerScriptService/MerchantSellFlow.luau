@@ -29,6 +29,25 @@ local NPCRotation = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChi
 local RateLimiter = require(ServerScriptService:WaitForChild("RateLimiter")) :: any
 local Telemetry = require(ServerScriptService:WaitForChild("Telemetry")) :: any
 
+-- BAB-PHASE-4-VISIT-FRIEND-AND-TROPHY-HALL: cross-server Hall of Sales
+-- leaderboard. Optional require so existing live servers keep working
+-- if the module ever fails to load (DataStore down, etc.).
+local TrophyData: any = nil
+do
+	local mod = ReplicatedStorage:FindFirstChild("Modules")
+	local td = mod and mod:FindFirstChild("TrophyData")
+	if td and td:IsA("ModuleScript") then
+		local ok, m = pcall(require, td)
+		if ok then TrophyData = m end
+	end
+end
+
+-- Threshold for what counts as a "notable" sell worth posting to the
+-- Hall of Sales. Picked at 5000g per the Phase 4 ticket — covers a
+-- mid-stash sale of mutated mid-tier critters but excludes the constant
+-- drip of penny-sells that would dominate the board otherwise.
+local HALL_OF_SALES_THRESHOLD = 5000
+
 local M = {}
 
 -- ── DataStore ────────────────────────────────────────────────────────
@@ -257,10 +276,13 @@ end
 
 -- ── Commit flow ──────────────────────────────────────────────────────
 
--- Returns (totalPayout, processedCount, mutationCount).
-local function commitSell(npcId: string, player: Player): (number, number, number)
+-- Returns (totalPayout, processedCount, mutationCount, topSpeciesId, topMutationId).
+-- topSpeciesId/topMutationId capture the single line with the highest
+-- subtotal — used for the Hall of Sales leaderboard's "what was sold"
+-- column. Empty strings if nothing was sold (e.g. all contraband).
+local function commitSell(npcId: string, player: Player): (number, number, number, string, string)
 	local p = MerchantPersonalities.get(npcId)
-	if not p then return 0, 0, 0 end
+	if not p then return 0, 0, 0, "", "" end
 
 	local class = playerClass(player)
 	local cashMult = (player:GetAttribute("CashMultiplier") :: number?) or 1
@@ -270,6 +292,8 @@ local function commitSell(npcId: string, player: Player): (number, number, numbe
 	local processed = 0
 	local mutationCount = 0
 	local capHit = false
+	local topSpeciesId = ""
+	local topMutationId = ""
 
 	local ok = pcall(function()
 		dataStore:UpdateAsync(dataKey(player), function(data)
@@ -294,6 +318,20 @@ local function commitSell(npcId: string, player: Player): (number, number, numbe
 			data.cash = (data.cash or 0) + raw
 			data.lifetimeCash = (data.lifetimeCash or 0) + raw
 
+			-- Find the dominant line (highest perEntry subtotal among priced
+			-- entries). Drives the Hall of Sales leaderboard's species column.
+			local topSubtotal = 0
+			for key, r in result.perEntry do
+				if r.skipReason ~= "" then continue end
+				local sub = r.totalPayout
+				if sub > topSubtotal then
+					topSubtotal = sub
+					local sep = string.find(key, ":") or 0
+					topSpeciesId = if sep > 0 then string.sub(key, 1, sep - 1) else key
+					topMutationId = if sep > 0 then string.sub(key, sep + 1) else ""
+				end
+			end
+
 			-- Clear ONLY the stash lines we actually paid for. Contraband / skipped
 			-- entries stay in the stash for the player to scrap later.
 			local remaining: { [string]: number } = {}
@@ -312,7 +350,7 @@ local function commitSell(npcId: string, player: Player): (number, number, numbe
 		end)
 	end)
 
-	if not ok then return 0, 0, 0 end
+	if not ok then return 0, 0, 0, "", "" end
 
 	-- Mirror cash bump onto live leaderstats (no extra DataStore round-trip).
 	local ls = player:FindFirstChild("leaderstats")
@@ -326,7 +364,7 @@ local function commitSell(npcId: string, player: Player): (number, number, numbe
 		warn(("[%s] payout cap hit for %s — clamped to %d"):format(npcId, player.Name, MAX_PAYOUT))
 	end
 
-	return payout, processed, mutationCount
+	return payout, processed, mutationCount, topSpeciesId, topMutationId
 end
 
 -- ── Public API ───────────────────────────────────────────────────────
@@ -373,7 +411,7 @@ MarketplaceSellRE.OnServerEvent:Connect(function(player, action, npcId)
 		return
 	end
 
-	local payout, processed, mutations = commitSell(npcId, player)
+	local payout, processed, mutations, topSpeciesId, topMutationId = commitSell(npcId, player)
 
 	-- ADR-3 telemetry. Emitting on the server side (single source of truth)
 	-- so client-spoofed events can't pollute the funnel.
@@ -388,6 +426,24 @@ MarketplaceSellRE.OnServerEvent:Connect(function(player, action, npcId)
 			cashMult = player:GetAttribute("CashMultiplier") or 1,
 		}, player)
 	end)
+
+	-- BAB-PHASE-4: post notable sells to the cross-server Hall of Sales
+	-- leaderboard. Threshold (5000g) excludes the noise-floor of small
+	-- starter sales so the board reflects meaningful trophies.
+	if TrophyData and payout >= HALL_OF_SALES_THRESHOLD then
+		task.spawn(function()
+			pcall(function()
+				TrophyData.submit("hall_of_sales", {
+					userId = player.UserId,
+					displayName = player.DisplayName,
+					value = payout,
+					species = topSpeciesId,
+					mutation = topMutationId,
+					timestamp = os.time(),
+				})
+			end)
+		end)
+	end
 
 	MarketplaceSellRE:FireClient(player, "result", {
 		npcId = npcId,

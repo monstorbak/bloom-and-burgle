@@ -33,6 +33,7 @@ api-keys.json
 
 # Wrangler local build/preview cache (telemetry Worker dev artifacts)
 tools/telemetry-worker/.wrangler/
+.wrangler/
 
 # Logs
 *.log

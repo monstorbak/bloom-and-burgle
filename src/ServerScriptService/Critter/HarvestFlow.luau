@@ -25,6 +25,19 @@ local EscapeWindow = require(script.Parent:WaitForChild("EscapeWindow") :: Modul
 -- /forcemutation <id> chat command; honored only when DevMode is on).
 local DevMode = require(ServerScriptService:WaitForChild("DevMode") :: ModuleScript) :: any
 
+-- BAB-PHASE-4-VISIT-FRIEND-AND-TROPHY-HALL: cross-server Mythic Hatchers
+-- leaderboard. Optional require — server keeps running if module fails to
+-- load (e.g. DataStore unavailable in Studio without API access).
+local TrophyData: any = nil
+do
+	local mod = ReplicatedStorage:FindFirstChild("Modules")
+	local td = mod and mod:FindFirstChild("TrophyData")
+	if td and td:IsA("ModuleScript") then
+		local ok, m = pcall(require, td)
+		if ok then TrophyData = m end
+	end
+end
+
 -- The harvest-popup RemoteEvent is created lazily here so the module is
 -- self-sufficient (no PlantHandler.server.luau to make it). Idempotent:
 -- subsequent requires hit the existing instance.
@@ -133,6 +146,29 @@ function HarvestFlow.harvestPlanter(player: Player, planter: BasePart): boolean
 				class = player:GetAttribute("Class"),
 			}, player)
 		end)
+
+		-- BAB-PHASE-4: increment lifetime Mythic Hatchers counter and post
+		-- to the cross-server Trophy Hall. Counter is mirrored on the
+		-- player attribute so subsequent mythic rolls in the same session
+		-- bump the leaderboard value monotonically without a DataStore
+		-- read. The TrophyData.submit dedupes by (uid, value) so resubmits
+		-- from concurrent jobs don't double-count.
+		local lifetimeMythics = (player:GetAttribute("MythicHatches") or 0) + 1
+		player:SetAttribute("MythicHatches", lifetimeMythics)
+		if TrophyData then
+			task.spawn(function()
+				pcall(function()
+					TrophyData.submit("mythic_hatch", {
+						userId = player.UserId,
+						displayName = player.DisplayName,
+						value = lifetimeMythics,
+						species = speciesId,
+						mutation = mutationId,
+						timestamp = os.time(),
+					})
+				end)
+			end)
+		end
 	end
 
 	-- Fire popup to client. We bind to a local first because Luau's parser
