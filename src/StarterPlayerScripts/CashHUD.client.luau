@@ -101,6 +101,8 @@ end
 
 -- ── Seed inventory chip (under cash) ──────────────────────────────────
 local CritterData = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("CritterData"))
+-- BAB-DESIGN-CRITIQUE Tier 1 (2026-05-10): brand-coherent button styling.
+local BrandColors = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("BrandColors"))
 
 -- BAB-UX (2026-05-08): seed bag tracks the smaller cash chip — y-offset
 -- 95 → 80 (cash chip is now 56px tall + 16px top gutter + 8px gap = 80).
@@ -263,47 +265,69 @@ do
 	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 18; tx.Parent = hintLabel
 end
 
--- ── Bottom-left return-to-plot button ────────────────────────────────
-local returnBtn = Instance.new("TextButton")
-returnBtn.Name = "ReturnToPlotBtn"
-returnBtn.Size = UDim2.new(0, 200, 0, 70)
-returnBtn.AnchorPoint = Vector2.new(0, 1)
-returnBtn.Position = UDim2.new(0, 16, 1, -16)
-returnBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 80)
-returnBtn.TextColor3 = Color3.fromRGB(40, 25, 60)
-returnBtn.Text = "🏠 PLOT"
-returnBtn.Font = Enum.Font.FredokaOne
-returnBtn.TextScaled = true
-returnBtn.BorderSizePixel = 0
-returnBtn.AutoButtonColor = true
-returnBtn.Visible = false
-returnBtn.Parent = screen
-do
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = returnBtn
-	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(40, 25, 60); s.Thickness = 3; s.Parent = returnBtn
-	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(140, 60); sz.MaxSize = Vector2.new(260, 90); sz.Parent = returnBtn
+-- ── Bottom-row nav buttons ───────────────────────────────────────────
+-- BAB-DESIGN-CRITIQUE Tier 1 (2026-05-10): rebranded from generic
+-- pink/green Roblox-template buttons to brass-bordered OilBlack panels
+-- aligned to the steampunk identity. Same functional wiring; only the
+-- visual treatment changed.
+
+-- Shared button builder. Returns the TextButton — caller wires .Activated.
+-- Using a local builder instead of dragging in a new UIComponents module
+-- because this is the only place these 2 buttons exist and we want the
+-- diff small. Promote to a module in Tier 2 (UIComponents.luau).
+local function buildNavButton(opts: {
+	name: string,
+	text: string,
+	anchor: Vector2,
+	position: UDim2,
+}): TextButton
+	local btn = Instance.new("TextButton")
+	btn.Name = opts.name
+	btn.Size = UDim2.new(0, 220, 0, 70)
+	btn.AnchorPoint = opts.anchor
+	btn.Position = opts.position
+	btn.BackgroundColor3 = BrandColors.OilBlack
+	btn.BackgroundTransparency = 0.05
+	btn.TextColor3 = BrandColors.SteamCream
+	btn.Text = opts.text
+	btn.Font = Enum.Font.FredokaOne
+	btn.TextScaled = true
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = true
+	btn.Parent = screen
+	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 12); c.Parent = btn
+	-- Brass stroke = the brand-coherent visual signal "this is interactive".
+	local s = Instance.new("UIStroke"); s.Color = BrandColors.Brass; s.Thickness = 2; s.Parent = btn
+	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(160, 56); sz.MaxSize = Vector2.new(260, 78); sz.Parent = btn
+	-- Hold the text smaller than the box so we get true button-y padding.
+	local tx = Instance.new("UITextSizeConstraint"); tx.MaxTextSize = 22; tx.Parent = btn
+	-- 6px interior padding (matches Friends panel toggle button).
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 10)
+	pad.PaddingTop = UDim.new(0, 6); pad.PaddingBottom = UDim.new(0, 6)
+	pad.Parent = btn
+	return btn
 end
+
+-- "MY WORKSHOP" reads better than "PLOT" in the steampunk-Ghibli register —
+-- a workshop is what tinkerers tend to. Same destination (your plot).
+local returnBtn = buildNavButton({
+	name = "ReturnToPlotBtn",
+	text = "🔧 MY WORKSHOP",
+	anchor = Vector2.new(0, 1),
+	position = UDim2.new(0, 16, 1, -16),
+})
+returnBtn.Visible = false   -- shown only when player has wandered off-plot
 returnBtn.Activated:Connect(function() returnRE:FireServer() end)
 
--- ── Bottom-right shop button ─────────────────────────────────────────
-local shopBtn = Instance.new("TextButton")
-shopBtn.Name = "ShopBtn"
-shopBtn.Size = UDim2.new(0, 200, 0, 70)
-shopBtn.AnchorPoint = Vector2.new(1, 1)
-shopBtn.Position = UDim2.new(1, -16, 1, -16)
-shopBtn.BackgroundColor3 = Color3.fromRGB(120, 220, 100)
-shopBtn.TextColor3 = Color3.fromRGB(20, 50, 30)
-shopBtn.Text = "🛒 SHOP"
-shopBtn.Font = Enum.Font.FredokaOne
-shopBtn.TextScaled = true
-shopBtn.BorderSizePixel = 0
-shopBtn.AutoButtonColor = true
-shopBtn.Parent = screen
-do
-	local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = shopBtn
-	local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(40, 80, 40); s.Thickness = 3; s.Parent = shopBtn
-	local sz = Instance.new("UISizeConstraint"); sz.MinSize = Vector2.new(140, 60); sz.MaxSize = Vector2.new(260, 90); sz.Parent = shopBtn
-end
+-- "🌱 SEED SHOP" is what the panel itself is titled (SeedShopUI.client.luau),
+-- so keeping that name avoids a mismatch with the opened panel.
+local shopBtn = buildNavButton({
+	name = "ShopBtn",
+	text = "🌱 SEED SHOP",
+	anchor = Vector2.new(1, 1),
+	position = UDim2.new(1, -16, 1, -16),
+})
 shopBtn.Activated:Connect(function() OpenShopRE:FireServer() end)
 
 -- ── Wire to leaderstats Cash ──────────────────────────────────────────

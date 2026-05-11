@@ -85,21 +85,34 @@ floor.Position = HALL_POSITION + Vector3.new(0, -2, -3)
 floor.Parent = hall
 
 -- ── Build the two plaques ────────────────────────────────────────────
+-- Phase-4 design-critique (2026-05-10) fixes:
+--   1. Plaque body now BrandColors.OilBlack (was IronworkCharcoal — same
+--      shade as the back wall, so plaques disappeared into it). OilBlack
+--      gives a deeper black that reads as a separate slab against the
+--      charcoal back.
+--   2. PointLight spotlight above each plaque (Brass color, range 14) so
+--      the plaque face catches light and the trophies feel celebrated.
+--   3. Pre-rendered 10 rank slots in the empty state with criteria
+--      footer — turns "this is broken" into "this is what's possible."
 type Plaque = {
 	model: BasePart,
 	gui: SurfaceGui,
 	listFrame: ScrollingFrame,
 	titleLbl: TextLabel,
-	emptyLbl: TextLabel,
+	footerLbl: TextLabel,         -- criteria copy at the bottom
+	emptySlots: { TextLabel },    -- the 10 rank placeholders shown when empty
+	accent: Color3,
 }
 
-local function buildPlaque(name: string, displayTitle: string, accent: Color3, xOffset: number): Plaque
+local TOP_N = 10
+
+local function buildPlaque(name: string, displayTitle: string, accent: Color3, xOffset: number, criteriaCopy: string): Plaque
 	local part = Instance.new("Part")
 	part.Name = name
 	part.Anchored = true
 	part.CanCollide = false
 	part.Material = Enum.Material.Metal
-	part.Color = BrandColors.IronworkCharcoal
+	part.Color = BrandColors.OilBlack
 	part.Size = Vector3.new(PLAQUE_WIDTH, PLAQUE_HEIGHT, PLAQUE_DEPTH)
 	part.Position = HALL_POSITION + Vector3.new(xOffset, 7, 0)
 	part.Parent = hall
@@ -117,6 +130,16 @@ local function buildPlaque(name: string, displayTitle: string, accent: Color3, x
 	botFrame.Name = "BotFrame"
 	botFrame.Position = part.Position + Vector3.new(0, -PLAQUE_HEIGHT/2, 0)
 	botFrame.Parent = hall
+
+	-- Spotlight overhead so the plaque face glows.
+	-- Anchored to TopFrame so it casts down onto the plaque body.
+	local spot = Instance.new("PointLight")
+	spot.Name = "TrophySpot"
+	spot.Color = BrandColors.Brass
+	spot.Brightness = 2.4
+	spot.Range = 14
+	spot.Shadows = false
+	spot.Parent = topFrame
 
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = Enum.NormalId.Front
@@ -137,10 +160,11 @@ local function buildPlaque(name: string, displayTitle: string, accent: Color3, x
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Center
 	titleLbl.Parent = gui
 
-	-- ScrollingFrame for the entries.
+	-- ScrollingFrame for the entries. Reduced bottom margin (-100 vs -75)
+	-- to leave room for the criteria footer below it.
 	local listFrame = Instance.new("ScrollingFrame")
 	listFrame.Name = "List"
-	listFrame.Size = UDim2.new(1, -10, 1, -75)
+	listFrame.Size = UDim2.new(1, -10, 1, -100)
 	listFrame.Position = UDim2.fromOffset(5, 70)
 	listFrame.BackgroundTransparency = 1
 	listFrame.BorderSizePixel = 0
@@ -155,26 +179,60 @@ local function buildPlaque(name: string, displayTitle: string, accent: Color3, x
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 	layout.Parent = listFrame
 
-	-- Empty-state label (shown when there are 0 entries).
-	local emptyLbl = Instance.new("TextLabel")
-	emptyLbl.Name = "Empty"
-	emptyLbl.Size = UDim2.new(1, -20, 0, 40)
-	emptyLbl.BackgroundTransparency = 1
-	emptyLbl.Text = "— No entries yet —"
-	emptyLbl.TextColor3 = BrandColors.SteamCream
-	emptyLbl.Font = Enum.Font.SourceSansItalic
-	emptyLbl.TextScaled = true
-	emptyLbl.Visible = true
-	emptyLbl.Parent = listFrame
+	-- Pre-render TOP_N rank-slot placeholders. These stay in the listFrame
+	-- forever; renderEntries fills them in or restores the "—" placeholder.
+	-- LayoutOrder is set so empty slots interleave correctly with real rows.
+	local emptySlots: { TextLabel } = {}
+	for i = 1, TOP_N do
+		local slot = Instance.new("TextLabel")
+		slot.Name = "EmptySlot_" .. i
+		slot.Size = UDim2.new(1, -8, 0, 28)
+		slot.BackgroundTransparency = 1
+		slot.Text = string.format("%d.  —", i)
+		slot.TextColor3 = Color3.fromRGB(120, 110, 100)   -- dimmer than real entries
+		slot.Font = Enum.Font.GothamBold
+		slot.TextTransparency = 0.4
+		slot.TextScaled = true
+		slot.TextXAlignment = Enum.TextXAlignment.Left
+		slot.LayoutOrder = i
+		slot.Parent = listFrame
+		emptySlots[i] = slot
+	end
 
-	return { model = part, gui = gui, listFrame = listFrame, titleLbl = titleLbl, emptyLbl = emptyLbl }
+	-- Criteria footer — tells players what they need to do to get on the
+	-- board. Anchored to bottom of the GUI, below the list.
+	local footerLbl = Instance.new("TextLabel")
+	footerLbl.Name = "Footer"
+	footerLbl.Size = UDim2.new(1, -10, 0, 28)
+	footerLbl.Position = UDim2.new(0, 5, 1, -32)
+	footerLbl.AnchorPoint = Vector2.new(0, 0)
+	footerLbl.BackgroundTransparency = 1
+	footerLbl.Text = criteriaCopy
+	footerLbl.TextColor3 = accent
+	footerLbl.TextTransparency = 0.15
+	footerLbl.Font = Enum.Font.SourceSansItalic
+	footerLbl.TextScaled = true
+	footerLbl.TextXAlignment = Enum.TextXAlignment.Center
+	footerLbl.Parent = gui
+
+	return {
+		model = part,
+		gui = gui,
+		listFrame = listFrame,
+		titleLbl = titleLbl,
+		footerLbl = footerLbl,
+		emptySlots = emptySlots,
+		accent = accent,
+	}
 end
 
 local hallOfSalesPlaque = buildPlaque(
-	"HallOfSales", "💰 HALL OF SALES", BrandColors.GoggleGold, -PLAQUE_SPACING
+	"HallOfSales", "💰 HALL OF SALES", BrandColors.GoggleGold, -PLAQUE_SPACING,
+	"Top single sales — 5,000g+ to qualify"
 )
 local mythicHatchPlaque = buildPlaque(
-	"MythicHatchers", "💫 MYTHIC HATCHERS", BrandColors.AetherCyan, PLAQUE_SPACING
+	"MythicHatchers", "💫 MYTHIC HATCHERS", BrandColors.AetherCyan, PLAQUE_SPACING,
+	"Most lifetime Mythic hatches — keep harvesting"
 )
 
 -- ── Format helpers ───────────────────────────────────────────────────
@@ -204,30 +262,40 @@ end
 
 -- ── Refresh loop ─────────────────────────────────────────────────────
 
-local function clearList(plaque: Plaque)
+-- Destroy any previously-rendered real rows (everything that isn't a
+-- preserved empty slot). EmptySlots are toggled visible/invisible, never
+-- destroyed — they're load-bearing scaffolding for the empty-state UX.
+local function clearRealRows(plaque: Plaque)
 	for _, child in plaque.listFrame:GetChildren() do
-		if child:IsA("TextLabel") and child.Name ~= "Empty" then child:Destroy() end
+		if child:IsA("TextLabel") and not child.Name:match("^EmptySlot_") then
+			child:Destroy()
+		end
 	end
 end
 
 local function renderEntries(plaque: Plaque, entries: { TrophyData.Entry }, formatter: (number, TrophyData.Entry) -> string)
-	clearList(plaque)
-	if #entries == 0 then
-		plaque.emptyLbl.Visible = true
-		return
-	end
-	plaque.emptyLbl.Visible = false
-	for i, entry in entries do
-		local row = Instance.new("TextLabel")
-		row.Size = UDim2.new(1, -8, 0, 32)
-		row.BackgroundTransparency = 1
-		row.Text = formatter(i, entry)
-		row.TextColor3 = BrandColors.SteamCream
-		row.Font = Enum.Font.GothamBold
-		row.TextScaled = true
-		row.TextXAlignment = Enum.TextXAlignment.Left
-		row.LayoutOrder = i
-		row.Parent = plaque.listFrame
+	clearRealRows(plaque)
+	-- For each rank slot i: if there's a real entry, show it (and hide
+	-- the slot placeholder); otherwise show the dim "i. —" slot.
+	local n = math.min(#entries, TOP_N)
+	for i = 1, TOP_N do
+		local slot = plaque.emptySlots[i]
+		if i <= n then
+			slot.Visible = false
+			local row = Instance.new("TextLabel")
+			row.Name = "Row_" .. i
+			row.Size = UDim2.new(1, -8, 0, 32)
+			row.BackgroundTransparency = 1
+			row.Text = formatter(i, entries[i])
+			row.TextColor3 = (i == 1) and plaque.accent or BrandColors.SteamCream
+			row.Font = (i == 1) and Enum.Font.FredokaOne or Enum.Font.GothamBold
+			row.TextScaled = true
+			row.TextXAlignment = Enum.TextXAlignment.Left
+			row.LayoutOrder = i
+			row.Parent = plaque.listFrame
+		else
+			slot.Visible = true
+		end
 	end
 end
 
