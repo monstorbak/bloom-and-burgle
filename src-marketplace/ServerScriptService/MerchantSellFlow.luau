@@ -371,6 +371,13 @@ end
 
 -- Wire an NPC's ProximityPrompt to fire a quote when a player triggers it.
 -- Called from each NPC's server script after building visuals.
+--
+-- BAB-ANDROID-TAP-FIX (2026-05-11): also wires ClickDetectors to any
+-- BaseParts under the NPC's parent Model so mobile players who tap the
+-- 3D NPC directly (instead of the on-screen prompt button) still trigger
+-- the sell quote. ProximityPrompt's mobile UI is unreliable when other
+-- HUD elements occlude its tap target; ClickDetector is the always-works
+-- backstop. Same UX as a Workspace ClickDetector: just walk close + tap.
 function M.attachNPC(npcId: string, prompt: ProximityPrompt)
 	if not MerchantPersonalities.get(npcId) then
 		warn("[MerchantSellFlow] attachNPC: unknown npcId " .. tostring(npcId))
@@ -379,6 +386,42 @@ function M.attachNPC(npcId: string, prompt: ProximityPrompt)
 	prompt.Triggered:Connect(function(player)
 		quoteFor(npcId, player)
 	end)
+
+	-- Attach a ClickDetector to every BasePart in the NPC's containing
+	-- model (counter, head, body, sign — any of them tappable). MaxActivation-
+	-- Distance matches the ProximityPrompt so we don't accidentally let
+	-- players sell from across the plaza.
+	local container = prompt.Parent
+	if container and container:IsA("Instance") then
+		-- Walk up to find the stall Model that wraps the NPC visuals.
+		local stall: Instance? = container
+		while stall and stall.Parent ~= nil and not (stall:IsA("Model") and stall:FindFirstChildOfClass("Part")) do
+			stall = stall.Parent
+		end
+		local hostModel = stall and stall:IsA("Model") and stall or container
+		local parts: { BasePart } = {}
+		-- Pull the NPC's own part (prompt's parent) first.
+		if container:IsA("BasePart") then table.insert(parts, container :: BasePart) end
+		-- Then sweep the surrounding stall model for clickable surfaces.
+		if hostModel then
+			for _, c in hostModel:GetDescendants() do
+				if c:IsA("BasePart") and c ~= container and c.CanQuery ~= false then
+					table.insert(parts, c)
+				end
+			end
+		end
+		for _, part in parts do
+			local existing = part:FindFirstChildOfClass("ClickDetector")
+			if existing then continue end
+			local cd = Instance.new("ClickDetector")
+			cd.Name = "MerchantClick"
+			cd.MaxActivationDistance = prompt.MaxActivationDistance
+			cd.CursorIcon = ""   -- default cursor; let Roblox theme it
+			cd.Parent = part
+			cd.MouseClick:Connect(function(player) quoteFor(npcId, player) end)
+		end
+	end
+
 	-- Print today's special on boot for live-server-log discoverability.
 	local _, todaysName = todaysSpecialFor(npcId)
 	print(("[BAB-LIFE] %s online (today's special: %s)"):format(npcId, todaysName or "—"))

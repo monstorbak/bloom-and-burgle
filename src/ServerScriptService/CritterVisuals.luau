@@ -66,6 +66,74 @@ local function ensureCeremonyRE(): RemoteEvent
 end
 ensureCeremonyRE()  -- create at module load so Phase 2/3 can fire without race
 
+-- ── Ripe indicator builder ──────────────────────────────────────────
+-- BAB-VISIBILITY-FIX (2026-05-11): consolidated from the two duplicate
+-- inline copies (archetype path + rig path). The original had:
+--   1. TextColor3 unset → defaulted to BLACK → invisible against the
+--      Aether Hour night sky (and the Forge Hour dim corners). Players
+--      reported "can't see anything when it's ready to harvest" because
+--      both the indicator AND the metal rig were swallowed by ambient.
+--   2. No species displayName → on Android, where some emojis (🪲) fail
+--      to render, the indicator showed a blank square.
+--
+-- This helper:
+--   - Sets TextColor3 = SteamCream (light) with OilBlack stroke for
+--     contrast in any lighting.
+--   - Adds the species displayName below the emoji so the indicator
+--     stays legible even when the emoji glyph is missing.
+--   - Bumps StudsOffset to 4 so the BillboardGui clears the egg shell
+--     during the grow cycle (the egg is ~2.8 tall).
+local function buildRipeIndicator(body: BasePart, species: any): (PointLight, BillboardGui)
+	local color = body.Color   -- match body's tint
+
+	local light = Instance.new("PointLight")
+	light.Name = "RipeGlow"
+	light.Color = color
+	light.Range = 12
+	light.Brightness = 0
+	light.Parent = body
+
+	local indicator = Instance.new("BillboardGui")
+	indicator.Name = "RipeIndicator"
+	indicator.Size = UDim2.fromOffset(140, 80)
+	indicator.StudsOffset = Vector3.new(0, 4, 0)
+	indicator.AlwaysOnTop = true
+	indicator.LightInfluence = 0
+	indicator.Enabled = false
+	indicator.Parent = body
+
+	local emoji = Instance.new("TextLabel")
+	emoji.Name = "Emoji"
+	emoji.Size = UDim2.new(1, 0, 0.55, 0)
+	emoji.Position = UDim2.fromScale(0, 0)
+	emoji.BackgroundTransparency = 1
+	emoji.Text = (species.emoji or "✨") .. " READY"
+	emoji.TextColor3 = Color3.fromRGB(242, 228, 201)  -- SteamCream
+	emoji.TextStrokeColor3 = Color3.fromRGB(26, 20, 16)  -- OilBlack
+	emoji.TextStrokeTransparency = 0
+	emoji.TextScaled = true
+	emoji.Font = Enum.Font.FredokaOne
+	emoji.RichText = false
+	emoji.Parent = indicator
+
+	-- Species name below — fallback for when the emoji glyph is missing
+	-- (Android device with limited emoji font, or unicode rendering bug).
+	local name = Instance.new("TextLabel")
+	name.Name = "SpeciesName"
+	name.Size = UDim2.new(1, 0, 0.45, 0)
+	name.Position = UDim2.fromScale(0, 0.55)
+	name.BackgroundTransparency = 1
+	name.Text = species.displayName or species.id or ""
+	name.TextColor3 = Color3.fromRGB(232, 197, 71)  -- GoggleGold
+	name.TextStrokeColor3 = Color3.fromRGB(26, 20, 16)
+	name.TextStrokeTransparency = 0
+	name.TextScaled = true
+	name.Font = Enum.Font.GothamBold
+	name.Parent = indicator
+
+	return light, indicator
+end
+
 local function makePart(name: string, parent: Instance): Part
 	local p = Instance.new("Part")
 	p.Name = name
@@ -411,28 +479,8 @@ local function createRig(model: Model, planter: BasePart, species: any)
 	pop.Enabled = false
 	pop.Parent = popAttach
 
-	-- ── Ripe indicator (same as archetype path) ──
-	local light = Instance.new("PointLight")
-	light.Name = "RipeGlow"
-	light.Color = color
-	light.Range = 12
-	light.Brightness = 0
-	light.Parent = body
-
-	local indicator = Instance.new("BillboardGui")
-	indicator.Name = "RipeIndicator"
-	indicator.Size = UDim2.fromOffset(80, 80)
-	indicator.StudsOffset = Vector3.new(0, 3, 0)
-	indicator.AlwaysOnTop = true
-	indicator.Enabled = false
-	indicator.Parent = body
-	local ind = Instance.new("TextLabel")
-	ind.Size = UDim2.fromScale(1, 1)
-	ind.BackgroundTransparency = 1
-	ind.Text = species.emoji or "✨"
-	ind.TextScaled = true
-	ind.Font = Enum.Font.FredokaOne
-	ind.Parent = indicator
+	-- ── Ripe indicator (consolidated builder; see top of file) ──
+	buildRipeIndicator(body, species)
 
 	-- Idle: subtle scale-pulse on the body. Runs forever (low cost).
 	task.spawn(function()
@@ -654,28 +702,8 @@ function CritterVisuals.create(planter: BasePart, species: any): Model
 		end
 	end
 
-	-- ── Ripe indicator ──
-	local light = Instance.new("PointLight")
-	light.Name = "RipeGlow"
-	light.Color = color
-	light.Range = 10
-	light.Brightness = 0
-	light.Parent = body
-
-	local indicator = Instance.new("BillboardGui")
-	indicator.Name = "RipeIndicator"
-	indicator.Size = UDim2.fromOffset(80, 80)
-	indicator.StudsOffset = Vector3.new(0, 3, 0)
-	indicator.AlwaysOnTop = true
-	indicator.Enabled = false
-	indicator.Parent = body
-	local ind = Instance.new("TextLabel")
-	ind.Size = UDim2.fromScale(1, 1)
-	ind.BackgroundTransparency = 1
-	ind.Text = species.emoji or "✨"
-	ind.TextScaled = true
-	ind.Font = Enum.Font.FredokaOne
-	ind.Parent = indicator
+	-- ── Ripe indicator (consolidated builder; see top of file) ──
+	buildRipeIndicator(body, species)
 
 	return model
 end
@@ -735,7 +763,10 @@ function CritterVisuals.markRipe(plantModel: Model, isRipe: boolean)
 	local glow = body:FindFirstChild("RipeGlow") :: PointLight?
 	local ind = body:FindFirstChild("RipeIndicator") :: BillboardGui?
 	if isRipe then
-		if glow then glow.Brightness = 2 end
+		-- BAB-VISIBILITY-FIX (2026-05-11): brightness bumped 2 → 5 so the
+		-- body's brass actually lights up against Aether Hour ambient (the
+		-- night phase dims ambient to ~0.3× brass, swallowing critters).
+		if glow then glow.Brightness = 5 end
 		if ind then ind.Enabled = true end
 		task.spawn(function()
 			while plantModel.Parent and plantModel:GetAttribute("Ripe") do
