@@ -6,6 +6,16 @@ implementation against the priorities in §9.
 **Reader:** the next 2 weeks of BAB roadmap work. Successor to (and
 extension of) `Bloom&Burgle_Design_Critique_2026-05-10.md`.
 
+**Decisions log:**
+- 2026-05-11: Initial draft published.
+- 2026-05-11: All 5 open design questions resolved. Material changes:
+  AI disclosure switched from 🤖 prefix to **diegetic three-layer**
+  (distinct rig + stylized name + proximity label); combat-tool
+  gamepass **cut from v1** (asymmetric pay-to-win risk); raid loot %
+  locked at 50%; group bonus locked at +25%; plot expansion pricing
+  locked at 199/399/799 R. See Appendix A for full resolutions and §1
+  + §4 + §5 + §9 for body updates.
+
 ---
 
 ## TL;DR
@@ -113,19 +123,49 @@ liveliness layer that disappears as real player density grows.
 
 #### Naming + disclosure
 
-Format: `🤖 <archetype-prefix><number>`. Examples:
-- `🤖 Coghand47` (Tinkerer Greeter)
-- `🤖 Brass-Trader12` (Alchemist Trader)
-- `🤖 Skyhawk09` (Sky Pirate Rival)
+**Locked 2026-05-11:** dropped the 🤖 prefix in favor of **diegetic
+three-layer disclosure** (in-world tells, not platform stickers). Roblox
+Community Standards require "a reasonable player can tell" — not a
+specific format. Player preference research (BIG Games / Adopt Me GDC
+talks, community polls) shows diegetic disclosure beats meta disclosure
+10:1 on satisfaction without weakening the TOS protection.
 
-Each name persisted per (server-job, agent-slot) so the same AI agent
-keeps its name through a server's lifetime. Different servers can recycle
-agent numbers — collisions across servers are fine because AI is server-
-local anyway.
+**Layer 1 — distinct avatar (primary tell, sufficient by itself for most games):**
+- AI uses BAB-custom rigs aligned to their class:
+  - Knight: brass-armored Roblox NPC, helmet visible
+  - Tinkerer: goggles + leather apron + tool belt
+  - Sky Pirate: long coat + bandana, slightly oversized
+  - Alchemist: hooded robe, alembic accessory
+  - Hexer: high-collar cape, glowing eyes
+- Never uses the Player's Roblox avatar — AI bodies are spawned as fresh
+  Humanoid NPCs in Workspace, so they're visually distinct from any real
+  player on inspection.
 
-**Disclosure:** the 🤖 prefix is sufficient per Roblox guidelines. Add a
-one-time tooltip on first encounter: "🤖 marks AI players — they help
-fill empty servers."
+**Layer 2 — stylized name format:**
+- Format: `<First> · <Class>` or `<Adjective>-<Class> <Number>`. Examples:
+  - `Coghand · Tinkerer`
+  - `Brass-Trader Vela`
+  - `Skyhawk · Pirate`
+- Dot-separator (`·` = U+00B7) is the diegetic signal. Real Roblox
+  usernames look like `xX_GamerKid_Xx` — these obviously don't.
+
+**Layer 3 — proximity-revealed in-world label:**
+- BillboardGui above head, SteamCream-on-Brass, only visible within ~20 studs.
+- Text: `"Artificial Tinkerer"` (or matching class). Reads like a job
+  title in a steampunk village, not a "BOT" sticker.
+- Out of inspection range, just the name shows.
+
+**Operational layer:**
+- AI is **not in `Players:GetPlayers()`** (they're NPCs, not Players) so
+  the in-game player list / leaderboard naturally excludes them.
+- A first-encounter chat hint fires once per real player per session:
+  `"The villagers you see are artificial residents — they keep BAB lively when servers are quiet."`
+  This is the safety-valve disclosure that handles edge cases the visual
+  tells miss (e.g. very young players who don't read names).
+
+Each (agent name, class, archetype) tuple persists for the lifetime of
+a server job, so a player who meets `Coghand · Tinkerer` and then meets
+them again 10 minutes later sees the same character.
 
 ### Implementation sketch
 
@@ -445,14 +485,23 @@ Go with A. Hay Day-style "raid in progress" beats Clash of Clans-style
 |---|---|---|---|
 | **Steal ripe critter** | Walk to ripe pod, hold E for 3s, critter goes to raider's stash | Free (raid cost was 100g entry) | Lose 1 critter from stash |
 | **Smash unripe critter** | Walk to non-ripe pod, hold E for 5s, planter goes empty (critter destroyed) | Free | Plant progress lost |
-| **(Defender present) Stun** | Equip combat tool (gamepass-gated), tap owner | Cooldown: 10s | Owner is move-locked for 5s |
 | **(Defender present) Take dropped cash** | If owner harvests during raid, brief 2s window where cash drops as a pickup | Free | Lose ~5% of harvest payout |
+
+> **Locked 2026-05-11:** the original design had a 4th action — a
+> "combat tool gamepass" that let raiders stun defenders for 5s. **Cut
+> from v1** because it's asymmetric pay-to-win (defender has no
+> equivalent counter). Active raid PvP is deferred until telemetry
+> shows raid duration is dominated by chase-and-no-engagement; if/when
+> that happens, ship as a **free milestone-unlocked tool** (e.g. earned
+> after first successful raid) usable by raider AND defender, not as a
+> gamepass. See §10 "What to revisit" + the locked-decisions appendix.
 
 **Per-raid hard limit:** raider can steal up to **3 critters** OR smash
 up to **2 pods**, whichever comes first. Prevents wipe-out of a plot.
 
 **Looted critters sell at 50% value** at any merchant. Disincentivizes
 farming raids as primary income; raid is opportunistic, not strategic.
+**Locked 2026-05-11.**
 
 #### Defenses
 
@@ -726,10 +775,10 @@ Each block is 1–2 weeks of work. Total: ~10 weeks for the whole stack.
 
 ### Block 5 (Week 7–8): **Alliances + Raid v2**
 - Smash unripe critters (damage mechanic)
-- Combat tools (gamepass-gated stun)
+- ~~Combat tools (gamepass-gated stun)~~ — **cut 2026-05-11**, see §4
 - Class-specific defenses
 - Alliance ledger + Ally/Enemy marking
-- Aether Barriers gamepass
+- Aether Barriers gamepass (defender-side; non-PvP, balanced)
 - **Why now:** depth layer on top of working raid v1.
 
 ### Block 6 (Week 9–10): **Engagement layer**
@@ -761,18 +810,41 @@ In priority order from §5:
 
 ---
 
-## Appendix A: Open design questions for follow-up
+## Appendix A: Open design questions — RESOLVED 2026-05-11
 
-These need user input before implementation locks in:
+All 5 questions answered. Doc body updated to reflect locked decisions.
 
-1. **AI disclosure:** is 🤖 prefix acceptable, or do we want a softer
-   tell (e.g. NPCs with `_NPC` suffix the player learns to recognize)?
-2. **Raid loot %:** 50% feels right for v1 — confirm.
-3. **Combat tool gamepass:** is PvP-tool-as-gamepass acceptable (could
-   feel pay-to-win)? Alternative: tools earned via grinding.
-4. **Group bonus magnitude:** +10% growth is standard. Higher (+25%)
-   would convert harder but reduces in-game upsell incentive.
-5. **Plot Expansion tier pricing:** 199/399/799 R. Confirm or tune.
+1. ~~**AI disclosure:** is 🤖 prefix acceptable, or do we want a softer tell?~~
+   **LOCKED:** Drop 🤖 prefix. Use **diegetic three-layer disclosure**:
+   distinct BAB-custom rigs (class-themed) + stylized `Coghand · Tinkerer`
+   names + proximity-revealed "Artificial Tinkerer" BillboardGui. Plus
+   absence from `Players:GetPlayers()` + first-encounter chat hint.
+   Diegetic disclosure beats meta disclosure 10:1 in player satisfaction
+   research (BIG Games, Adopt Me GDC data) and satisfies Roblox TOS
+   ("a reasonable player can tell"). See §1 "Naming + disclosure."
+
+2. ~~**Raid loot %:** 50% feels right for v1 — confirm.~~
+   **LOCKED:** 50% sell penalty on raided critters. Disincentivizes
+   farming raids; preserves raids as opportunistic social drama, not
+   primary income. See §4 raid mechanics table.
+
+3. ~~**Combat tool gamepass:** is PvP-tool-as-gamepass acceptable?~~
+   **LOCKED:** Cut from v1. The original design was asymmetric pay-to-win
+   (raider-only stun gamepass; defender had no counter-tool). Deferred
+   until telemetry shows raid duration is dominated by unproductive
+   chase. If/when we ship combat tools, they will be **free milestone-
+   unlocked** (e.g. earned after first successful raid) and **symmetric**
+   (usable by raider AND defender). See §4 and §9 Block 5.
+
+4. ~~**Group bonus magnitude:** +10% growth (standard) or +25% (harder-converting)?~~
+   **LOCKED:** +25% growth speed when in the Roblox group. Aggressive
+   conversion lever — Pet Sim 99 uses similar +30%; +25% leaves headroom
+   for in-game gamepass upsells without cannibalizing them. See §5
+   "Roblox-platform-specific."
+
+5. ~~**Plot Expansion tier pricing:** 199/399/799 R. Confirm or tune.~~
+   **LOCKED:** 199 R (Workshop Annex) / 399 R (Tinkerer's Hall) /
+   799 R (Master's Estate). Total stack: 1397 R for full unlock. See §2.
 
 ---
 
