@@ -151,7 +151,14 @@ M.SPECIES = {
 	brass_beetle = {
 		id = "brass_beetle",
 		displayName = "Brass Beetle",
-		emoji = "🪲",
+		-- BAB-EMOJI-FIX (2026-05-11): 🪲 (Unicode 13.0, 2020) doesn't render
+		-- on Roblox's font fallback on many devices — Brass Beetle showed up
+		-- with NO icon in the SEED SHOP and a blank label above ripe pods.
+		-- Swapped to 🐞 (ladybug, Unicode 6.0, 2010) — universally supported
+		-- and still reads as a cute beetle silhouette. Audited the rest of
+		-- the catalog (CritterData + MUTATIONS) and this was the only ≥U13
+		-- glyph; everything else is pre-2016.
+		emoji = "🐞",
 		archetype = "bug",
 		hatchArchetype = "cogworkPet",
 		color = {0.78, 0.57, 0.25},

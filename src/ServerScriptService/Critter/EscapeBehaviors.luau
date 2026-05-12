@@ -352,7 +352,9 @@ M.BEHAVIORS = {
 			id = "beetle_swarm",
 			name = "Beetle Swarm",
 			flavor = "Beetles auto-collect one ripe pod every 30 seconds for 4 minutes.",
-			emoji = "🪲",
+			-- BAB-EMOJI-FIX (2026-05-11): see CritterData.brass_beetle —
+			-- 🪲 was missing from Roblox's font; 🐞 is universally supported.
+			emoji = "🐞",
 			affinity = "asset",
 			durationSeconds = 240,
 			activate = catalogOnlyActivate,
