@@ -56,6 +56,10 @@ scripts/debug/captures/
 # Contains the live ingest key, never commit.
 src/ServerScriptService/TelemetryConfig.luau
 
+# Gamepass config — generated at publish time from .env (BB_TINKERER_PASS_ID).
+# Not secret, but regenerated every build so committing it would churn.
+src/ServerScriptService/GamepassConfig.luau
+
 # Chat history mirror — regenerable from ~/.claude/projects/<encoded>/<id>.jsonl
 # via scripts/history/export_history.py. Don't commit (it would churn every turn).
 Bloom&Burgle_ChatHistory.md
